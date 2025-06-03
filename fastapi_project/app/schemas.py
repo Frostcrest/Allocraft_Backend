@@ -66,22 +66,6 @@ class OptionRead(OptionBase):
     class Config:
         orm_mode = True
 
-class LEAPBase(BaseModel):
-    ticker: str = Field(..., description="Underlying stock ticker")
-    contract_info: str = Field(..., description="Strike, expiry, type description (e.g., '$150 Call Jan 2026')")
-    cost: float = Field(..., description="Premium paid for contract")
-    current_price: Optional[float] = Field(None, description="Current price of the underlying")
-    expiry_date: date = Field(..., description="Contract expiration date")
-
-class LEAPCreate(LEAPBase):
-    pass
-
-class LEAPRead(LEAPBase):
-    id: int
-
-    class Config:
-        orm_mode = True
-
 class WheelStrategyBase(BaseModel):
     wheel_id: str = Field(..., description="Unique identifier for wheel strategy (e.g., 'AAPL-W1')")
     ticker: str = Field(..., description="Stock ticker for wheel strategy")
