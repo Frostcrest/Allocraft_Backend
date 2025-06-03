@@ -2,21 +2,75 @@ from twelvedata import TDClient
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from . import models, schemas
+from datetime import datetime
+import requests
+import yfinance as yf
+
+
+# Helper function to fetch latest price (example using Twelve Data API)
+def fetch_latest_price(ticker: str) -> tuple[float, datetime]:
+    # Replace with your actual API key and endpoint
+    API_KEY = "59076e2930e5489796d3f74ea7082959"
+    url = f"https://api.twelvedata.com/price?symbol={ticker}&apikey={API_KEY}"
+    response = requests.get(url)
+    data = response.json()
+    price = float(data.get("price", 0))
+    now = datetime.utcnow()
+    return price, now
+
+def fetch_yf_price(ticker: str) -> float:
+    try:
+        data = yf.Ticker(ticker)
+        price = data.fast_info['last_price']
+        return float(price)
+    except Exception:
+        return None
+
+def fetch_option_contract_price(ticker: str, expiry_date: str, option_type: str, strike_price: float) -> float:
+    """
+    Fetch the last price for a specific option contract using yfinance.
+    :param ticker: Underlying ticker symbol (e.g., 'AAPL')
+    :param expiry_date: Expiry date in 'YYYY-MM-DD' format
+    :param option_type: 'Call' or 'Put'
+    :param strike_price: Strike price as float
+    :return: Last price of the option contract, or None if not found
+    """
+    try:
+        yf_ticker = yf.Ticker(ticker)
+        chain = yf_ticker.option_chain(expiry_date)
+        options_df = chain.calls if option_type.lower() == "call" else chain.puts
+        # Find the row with the exact strike price
+        row = options_df[options_df['strike'] == strike_price]
+        if not row.empty:
+            return float(row.iloc[0]['lastPrice'])
+    except Exception as e:
+        print(f"Error fetching option price: {e}")
+    return None
 
 
 # --- Stock CRUD ---
 
-def get_stocks(db: Session):
-    return db.query(models.Stock).all()
+def get_stocks(db: Session, refresh_prices: bool = False):
+    stocks = db.query(models.Stock).all()
+    if refresh_prices:
+        for stock in stocks:
+            price, updated = fetch_latest_price(stock.ticker)
+            stock.current_price = price
+            stock.price_last_updated = updated
+        db.commit()
+    return stocks
 
 def create_stock(db: Session, stock: schemas.StockCreate):
+    price, updated = fetch_latest_price(stock.ticker)
     db_stock = models.Stock(
         ticker=stock.ticker,
         shares=stock.shares,
         cost_basis=stock.cost_basis,
         market_price=stock.market_price,
         status=stock.status,
-        entry_date=str(stock.entry_date) if stock.entry_date else None
+        entry_date=str(stock.entry_date) if stock.entry_date else None,
+        current_price=price,
+        price_last_updated=updated,
     )
     db.add(db_stock)
     db.commit()
@@ -32,6 +86,10 @@ def update_stock(db: Session, stock_id: int, stock_data: schemas.StockCreate):
         db_stock.market_price = stock_data.market_price
         db_stock.status = stock_data.status
         db_stock.entry_date = str(stock_data.entry_date) if stock_data.entry_date else None
+        # Optionally refresh price on update
+        price, updated = fetch_latest_price(stock_data.ticker)
+        db_stock.current_price = price
+        db_stock.price_last_updated = updated
         db.commit()
         db.refresh(db_stock)
     return db_stock
@@ -50,6 +108,12 @@ def get_options(db: Session):
     return db.query(models.Option).all()
 
 def create_option(db: Session, option: schemas.OptionCreate):
+    option_price = fetch_option_contract_price(
+        option.ticker,
+        str(option.expiry_date),
+        option.option_type,
+        option.strike_price
+    )
     db_option = models.Option(
         ticker=option.ticker,
         option_type=option.option_type,
@@ -57,8 +121,9 @@ def create_option(db: Session, option: schemas.OptionCreate):
         expiry_date=str(option.expiry_date),
         contracts=option.contracts,
         cost=option.cost,
-        market_price_per_contract=option.market_price_per_contract,
+        market_price_per_contract=option_price,  # <-- set here
         status=option.status,
+        current_price=option_price,  # Optionally, keep this in sync
     )
     db.add(db_option)
     db.commit()
@@ -74,7 +139,15 @@ def update_option(db: Session, option_id: int, option_data: schemas.OptionCreate
         db_option.expiry_date = str(option_data.expiry_date)
         db_option.contracts = option_data.contracts
         db_option.cost = option_data.cost
-        db_option.market_price_per_contract = option_data.market_price_per_contract
+        # Fetch and update the actual option price
+        option_price = fetch_option_contract_price(
+            option_data.ticker,
+            str(option_data.expiry_date),
+            option_data.option_type,
+            option_data.strike_price
+        )
+        db_option.market_price_per_contract = option_price
+        db_option.current_price = option_price  # Optionally, keep this in sync
         db_option.status = option_data.status
         db.commit()
         db.refresh(db_option)
@@ -153,11 +226,12 @@ def get_leaps(db: Session):
     return db.query(models.LEAP).all()
 
 def create_leap(db: Session, leap: schemas.LEAPCreate):
+    current_price = fetch_yf_price(leap.ticker)
     db_leap = models.LEAP(
         ticker=leap.ticker,
         contract_info=leap.contract_info,
         cost=leap.cost,
-        current_price=leap.current_price,
+        current_price=current_price,
         expiry_date=str(leap.expiry_date)
     )
     db.add(db_leap)
@@ -171,7 +245,7 @@ def update_leap(db: Session, leap_id: int, leap_data: schemas.LEAPCreate):
         db_leap.ticker = leap_data.ticker
         db_leap.contract_info = leap_data.contract_info
         db_leap.cost = leap_data.cost
-        db_leap.current_price = leap_data.current_price
+        db_leap.current_price = fetch_yf_price(leap_data.ticker)
         db_leap.expiry_date = str(leap_data.expiry_date)
         db.commit()
         db.refresh(db_leap)

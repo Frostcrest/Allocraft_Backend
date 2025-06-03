@@ -39,7 +39,7 @@
             <input name="ticker" placeholder="Ticker" required />
             <input name="shares" type="number" min="0" step="any" placeholder="Shares" required />
             <input name="cost_basis" type="number" step="0.01" min="0" placeholder="Cost Basis" required />
-            <input name="market_price" type="number" step="0.01" min="0" placeholder="Market Price" />
+            <!-- Remove manual market_price input, as it's now calculated -->
             <select name="status" required>
                 <option value="Open">Open</option>
                 <option value="Sold">Sold</option>
@@ -55,7 +55,8 @@
                     <th>Ticker</th>
                     <th>Shares</th>
                     <th>Cost Basis</th>
-                    <th>Market Price</th>
+                    <th>Current Price</th>
+                    <th>Market Value</th>
                     <th>Status</th>
                     <th>Entry Date</th>
                     <th>Actions</th>
@@ -77,10 +78,13 @@
                 <option value="Put">Put</option>
             </select>
             <input name="strike_price" type="number" step="0.01" min="0" placeholder="Strike Price" required />
-            <input name="expiry_date" type="date" placeholder="Expiry Date" required />
+            <select name="expiry_date" id="expiryDateSelect" required>
+                <option value="" disabled selected>Select Expiry Date</option>
+                <!-- Options will be populated dynamically -->
+            </select>
             <input name="contracts" type="number" min="1" step="any" placeholder="Contracts" required />
             <input name="cost" type="number" step="0.01" min="0" placeholder="Total Cost" required />
-            <input name="market_price_per_contract" type="number" step="0.01" min="0" placeholder="Market Price/Contract" />
+            <input name="market_price_per_contract" type="number" step="0.01" min="0" placeholder="Current Price" />
             <select name="status" required>
                 <option value="Open">Open</option>
                 <option value="Closed">Closed</option>
@@ -98,7 +102,8 @@
                     <th>Expiry Date</th>
                     <th>Contracts</th>
                     <th>Cost</th>
-                    <th>Market Price/Contract</th>
+                    <th>Current Price</th> <!-- Renamed from Market Price/Contract -->
+                    <th>Market Value</th>
                     <th>Status</th>
                     <th>Actions</th>
                 </tr>
@@ -127,7 +132,7 @@
                     <th>Ticker</th>
                     <th>Contract Info</th>
                     <th>Cost</th>
-                    <th>Current Price</th>
+                    <th>Current Price</th> <!-- NEW COLUMN -->
                     <th>Expiry Date</th>
                     <th>Actions</th>
                 </tr>
@@ -194,12 +199,18 @@
         function renderStocks(stocks) {
             stocksTableBody.innerHTML = "";
             stocks.forEach(stock => {
+                // Calculate market value using current_price * shares
+                const currentPrice = stock.current_price !== null && stock.current_price !== undefined ? stock.current_price : null;
+                const shares = stock.shares !== null && stock.shares !== undefined ? stock.shares : null;
+                const marketValue = (currentPrice !== null && shares !== null) ? (currentPrice * shares) : null;
+
                 const tr = document.createElement("tr");
                 tr.innerHTML = `
                     <td>${stock.ticker}</td>
                     <td>${stock.shares}</td>
                     <td>${stock.cost_basis?.toFixed(2) ?? ""}</td>
-                    <td>${stock.market_price !== null && stock.market_price !== undefined ? stock.market_price.toFixed(2) : ""}</td>
+                    <td>${currentPrice !== null ? currentPrice.toFixed(2) : "-"}</td>
+                    <td>${marketValue !== null ? marketValue.toFixed(2) : "-"}</td>
                     <td>${stock.status}</td>
                     <td>${stock.entry_date ?? ""}</td>
                     <td>
@@ -216,7 +227,7 @@
             stockForm.ticker.value = "";
             stockForm.shares.value = "";
             stockForm.cost_basis.value = "";
-            stockForm.market_price.value = "";
+            // Remove market_price reset
             stockForm.status.value = "Open";
             stockForm.entry_date.value = "";
             editingStockId = null;
@@ -236,7 +247,7 @@
                     stockForm.ticker.value = stock.ticker;
                     stockForm.shares.value = stock.shares;
                     stockForm.cost_basis.value = stock.cost_basis ?? "";
-                    stockForm.market_price.value = stock.market_price ?? "";
+                    // stockForm.market_price.value = stock.market_price ?? "";
                     stockForm.status.value = stock.status ?? "Open";
                     stockForm.entry_date.value = stock.entry_date ?? "";
                     editingStockId = stock.id;
@@ -256,7 +267,7 @@
                 ticker: stockForm.ticker.value.trim().toUpperCase(),
                 shares: parseFloat(stockForm.shares.value),
                 cost_basis: parseFloat(stockForm.cost_basis.value),
-                market_price: stockForm.market_price.value ? parseFloat(stockForm.market_price.value) : null,
+                // Remove market_price from payload
                 status: stockForm.status.value,
                 entry_date: stockForm.entry_date.value || null
             };
@@ -314,6 +325,11 @@
         function renderOptions(options) {
             optionsTableBody.innerHTML = "";
             options.forEach(opt => {
+                // Calculate total price for all contracts
+                const contracts = opt.contracts !== null && opt.contracts !== undefined ? opt.contracts : 0;
+                const marketPrice = opt.market_price_per_contract !== null && opt.market_price_per_contract !== undefined ? opt.market_price_per_contract : 0;
+                const totalPrice = contracts * marketPrice;
+
                 const tr = document.createElement("tr");
                 tr.innerHTML = `
                     <td>${opt.ticker}</td>
@@ -322,7 +338,8 @@
                     <td>${opt.expiry_date ?? ""}</td>
                     <td>${opt.contracts}</td>
                     <td>${opt.cost?.toFixed(2) ?? ""}</td>
-                    <td>${opt.market_price_per_contract !== null && opt.market_price_per_contract !== undefined ? opt.market_price_per_contract.toFixed(2) : ""}</td>
+                    <td>${marketPrice ? marketPrice.toFixed(2) : "-"}</td>
+                    <td>${totalPrice ? totalPrice.toFixed(2) : "-"}</td>
                     <td>${opt.status}</td>
                     <td>
                         <button onclick="startOptionEdit(${opt.id})">Edit</button>
@@ -333,43 +350,37 @@
             });
         }
 
-        function resetOptionForm() {
-            optionForm.id.value = "";
-            optionForm.ticker.value = "";
-            optionForm.option_type.value = "";
-            optionForm.strike_price.value = "";
-            optionForm.expiry_date.value = "";
-            optionForm.contracts.value = "";
-            optionForm.cost.value = "";
-            optionForm.market_price_per_contract.value = "";
-            optionForm.status.value = "Open";
-            editingOptionId = null;
-            cancelOptionEditBtn.style.display = "none";
+        // Dynamically populate expiry dates for the selected ticker
+        const tickerInput = optionForm.ticker;
+        const expiryDateSelect = document.getElementById("expiryDateSelect");
+
+        async function fetchExpiryDates(ticker) {
+            if (!ticker) return [];
+            try {
+                // Call backend endpoint to get expiry dates
+                const res = await fetch(`/option_expiries/${ticker}`);
+                if (!res.ok) return [];
+                return await res.json();
+            } catch {
+                return [];
+            }
         }
 
-        window.startOptionEdit = function (id) {
-            fetch(`/options/`)
-                .then(res => res.json())
-                .then(options => {
-                    const opt = options.find(o => o.id === id);
-                    if (!opt) {
-                        alert("Option not found.");
-                        return;
-                    }
-                    optionForm.id.value = opt.id;
-                    optionForm.ticker.value = opt.ticker;
-                    optionForm.option_type.value = opt.option_type;
-                    optionForm.strike_price.value = opt.strike_price;
-                    optionForm.expiry_date.value = opt.expiry_date;
-                    optionForm.contracts.value = opt.contracts;
-                    optionForm.cost.value = opt.cost;
-                    optionForm.market_price_per_contract.value = opt.market_price_per_contract ?? "";
-                    optionForm.status.value = opt.status ?? "Open";
-                    editingOptionId = opt.id;
-                    cancelOptionEditBtn.style.display = "inline";
-                })
-                .catch(err => alert(err.message));
-        };
+        async function updateExpiryDates() {
+            const ticker = tickerInput.value.trim().toUpperCase();
+            expiryDateSelect.innerHTML = `<option value="" disabled selected>Loading...</option>`;
+            const expiries = await fetchExpiryDates(ticker);
+            expiryDateSelect.innerHTML = `<option value="" disabled selected>Select Expiry Date</option>`;
+            expiries.forEach(date => {
+                const opt = document.createElement("option");
+                opt.value = date;
+                opt.textContent = date;
+                expiryDateSelect.appendChild(opt);
+            });
+        }
+
+        tickerInput.addEventListener("blur", updateExpiryDates);
+        tickerInput.addEventListener("change", updateExpiryDates);
 
         cancelOptionEditBtn.addEventListener("click", e => {
             e.preventDefault();
@@ -447,7 +458,7 @@
                     <td>${leap.ticker}</td>
                     <td>${leap.contract_info}</td>
                     <td>${leap.cost?.toFixed(2) ?? ""}</td>
-                    <td>${leap.current_price !== null && leap.current_price !== undefined ? leap.current_price.toFixed(2) : ""}</td>
+                    <td>${leap.current_price !== null && leap.current_price !== undefined ? leap.current_price.toFixed(2) : "-"}</td>
                     <td>${leap.expiry_date ?? ""}</td>
                     <td>
                         <button onclick="startLeapEdit(${leap.id})">Edit</button>
@@ -458,6 +469,20 @@
             });
         }
 
+        function resetOptionForm() {
+            optionForm.id.value = "";
+            optionForm.ticker.value = "";
+            optionForm.option_type.value = "";
+            optionForm.strike_price.value = "";
+            optionForm.expiry_date.value = "";
+            optionForm.contracts.value = "";
+            optionForm.cost.value = "";
+            optionForm.market_price_per_contract.value = "";
+            optionForm.status.value = "Open";
+            editingOptionId = null;
+            cancelOptionEditBtn.style.display = "none";
+        }
+        
         function resetLeapForm() {
             leapForm.id.value = "";
             leapForm.ticker.value = "";
@@ -672,6 +697,32 @@
         fetchOptions();
         fetchLeaps();
         fetchWheels();
+
+        // Add this to your <script> section
+        window.startOptionEdit = function (id) {
+            fetch(`/options/`)
+                .then(res => res.json())
+                .then(async options => {
+                    const opt = options.find(o => o.id === id);
+                    if (!opt) {
+                        alert("Option not found.");
+                        return;
+                    }
+                    optionForm.id.value = opt.id;
+                    optionForm.ticker.value = opt.ticker;
+                    optionForm.option_type.value = opt.option_type;
+                    optionForm.strike_price.value = opt.strike_price ?? "";
+                    await updateExpiryDates(); // Ensure expiry dates are loaded
+                    optionForm.expiry_date.value = opt.expiry_date ?? "";
+                    optionForm.contracts.value = opt.contracts ?? "";
+                    optionForm.cost.value = opt.cost ?? "";
+                    optionForm.market_price_per_contract.value = opt.market_price_per_contract ?? "";
+                    optionForm.status.value = opt.status ?? "Open";
+                    editingOptionId = opt.id;
+                    cancelOptionEditBtn.style.display = "inline";
+                })
+                .catch(err => alert(err.message));
+        };
     </script>
 </body>
 
