@@ -1,7 +1,27 @@
 from twelvedata import TDClient
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
-from . import models
+from . import models, schemas
+
+
+def create_position(db: Session, position: schemas.PositionCreate) -> models.Position:
+    db_position = models.Position(**position.dict())
+    db.add(db_position)
+    db.commit()
+    db.refresh(db_position)
+    return db_position
+
+def get_positions(db: Session):
+    return db.query(models.Position).all()
+
+def delete_position(db: Session, position_id: int):
+    pos = db.query(models.Position).filter(models.Position.id == position_id).first()
+    if pos:
+        db.delete(pos)
+        db.commit()
+        return True
+    return False
+
 
 # Replace with your actual Twelve Data API key
 TD_API_KEY = "59076e2930e5489796d3f74ea7082959"
