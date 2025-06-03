@@ -4,12 +4,8 @@ from typing import Optional
 
 class PositionBase(BaseModel):
     symbol: str
-    position_type: str  # 'stock', 'call', 'put'
-    quantity: float
-    average_price: float
-    expiry: Optional[str] = None
-    strike_price: Optional[float] = None
-    side: Optional[str] = None  # 'long', 'short'
+    quantity: int
+    average_price: Optional[float] = None
 
 class PositionCreate(PositionBase):
     pass
@@ -20,8 +16,25 @@ class PositionRead(PositionBase):
     class Config:
         orm_mode = True
 
+class OptionPositionBase(BaseModel):
+    symbol: str
+    option_type: str
+    strike_price: float
+    expiration_date: str
+    quantity: int
+
+class OptionPositionCreate(OptionPositionBase):
+    pass
+
+class OptionPositionRead(OptionPositionBase):
+    id: int
+
+    class Config:
+        orm_mode = True
+
 # This file defines the Pydantic schemas for the Ticker model.
 class TickerBase(BaseModel):
+    """Base schema for a market ticker."""
     symbol: str
     name: Optional[str] = None
     last_price: Optional[str] = None
@@ -32,9 +45,11 @@ class TickerBase(BaseModel):
     timestamp: Optional[str] = None  # You can use datetime if desired
 
 class TickerCreate(BaseModel):
+    """Schema for creating a ticker."""
     symbol: str
     
 class TickerRead(TickerBase):
+    """Schema for reading a ticker from the database."""
     id: int
 
     class Config:
