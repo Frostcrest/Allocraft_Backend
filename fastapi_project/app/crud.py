@@ -120,10 +120,10 @@ def create_option(db: Session, option: schemas.OptionCreate):
         strike_price=option.strike_price,
         expiry_date=str(option.expiry_date),
         contracts=option.contracts,
-        cost=option.cost,
-        market_price_per_contract=option_price,  # <-- set here
+        cost_basis=option.cost_basis,  # <-- Renamed
+        market_price_per_contract=option_price,
         status=option.status,
-        current_price=option_price,  # Optionally, keep this in sync
+        current_price=option_price,
     )
     db.add(db_option)
     db.commit()
@@ -138,8 +138,7 @@ def update_option(db: Session, option_id: int, option_data: schemas.OptionCreate
         db_option.strike_price = option_data.strike_price
         db_option.expiry_date = str(option_data.expiry_date)
         db_option.contracts = option_data.contracts
-        db_option.cost = option_data.cost
-        # Fetch and update the actual option price
+        db_option.cost_basis = option_data.cost_basis  # <-- Renamed
         option_price = fetch_option_contract_price(
             option_data.ticker,
             str(option_data.expiry_date),
@@ -147,7 +146,7 @@ def update_option(db: Session, option_id: int, option_data: schemas.OptionCreate
             option_data.strike_price
         )
         db_option.market_price_per_contract = option_price
-        db_option.current_price = option_price  # Optionally, keep this in sync
+        db_option.current_price = option_price
         db_option.status = option_data.status
         db.commit()
         db.refresh(db_option)

@@ -109,8 +109,9 @@
                     <th>Strike Price</th>
                     <th>Expiry Date</th>
                     <th>Contracts</th>
-                    <th>Cost</th>
-                    <th>Current Price</th> <!-- Renamed from Market Price/Contract -->
+                    <th>Cost Basis</th>
+                    <th>Total Cost</th> <!-- New column -->
+                    <th>Current Price</th>
                     <th>Market Value</th>
                     <th>Status</th>
                     <th>Actions</th>
@@ -311,8 +312,9 @@
         function renderOptions(options) {
             optionsTableBody.innerHTML = "";
             options.forEach(opt => {
-                // Calculate total price for all contracts
                 const contracts = opt.contracts !== null && opt.contracts !== undefined ? opt.contracts : 0;
+                const costBasis = opt.cost_basis !== null && opt.cost_basis !== undefined ? opt.cost_basis : 0;
+                const totalCost = contracts * costBasis; // <-- New calculation
                 const marketPrice = opt.market_price_per_contract !== null && opt.market_price_per_contract !== undefined ? opt.market_price_per_contract : 0;
                 const totalPrice = contracts * marketPrice;
 
@@ -323,7 +325,8 @@
                     <td>${opt.strike_price?.toFixed(2) ?? ""}</td>
                     <td>${opt.expiry_date ?? ""}</td>
                     <td>${opt.contracts}</td>
-                    <td>${opt.cost?.toFixed(2) ?? ""}</td>
+                    <td>${costBasis ? costBasis.toFixed(2) : "-"}</td>
+                    <td>${totalCost ? totalCost.toFixed(2) : "-"}</td>
                     <td>${marketPrice ? marketPrice.toFixed(2) : "-"}</td>
                     <td>${totalPrice ? totalPrice.toFixed(2) : "-"}</td>
                     <td>${opt.status}</td>
@@ -381,7 +384,7 @@
                 strike_price: parseFloat(optionForm.strike_price.value),
                 expiry_date: optionForm.expiry_date.value,
                 contracts: parseFloat(optionForm.contracts.value),
-                cost: parseFloat(optionForm.cost.value),
+                cost_basis: parseFloat(optionForm.cost_basis.value), // <-- Renamed
                 market_price_per_contract: optionForm.market_price_per_contract.value ? parseFloat(optionForm.market_price_per_contract.value) : null,
                 status: optionForm.status.value
             };
@@ -455,6 +458,20 @@
                 `;
                 wheelsTableBody.appendChild(tr);
             });
+        }
+
+        function resetOptionForm() {
+            optionForm.id.value = "";
+            optionForm.ticker.value = "";
+            optionForm.option_type.value = "";
+            optionForm.strike_price.value = "";
+            optionForm.expiry_date.value = "";
+            optionForm.contracts.value = "";
+            optionForm.cost_basis.value = ""; // <-- Renamed
+            optionForm.market_price_per_contract.value = "";
+            optionForm.status.value = "Open";
+            editingOptionId = null;
+            cancelOptionEditBtn.style.display = "none";
         }
 
         function resetWheelForm() {

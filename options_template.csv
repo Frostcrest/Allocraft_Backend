@@ -1,6 +1,6 @@
-ticker,option_type,strike_price,expiration_date,quantity,premium,status,entry_date
+ticker,option_type,strike_price,expiration_date,quantity,cost_basis,status,entry_date
 AAPL,call,205,2027-12-17,4,43.68,Open,2024-06-01
 SPY,call,590,2025-10-31,2,32.79,Open,2024-05-15
 QBTS,call,10,2027-01-15,5,11.2,Open,2024-05-15
 GOOG,call,130,2026-01-16,2,43.8,Open,2024-05-15
-UNH,call,520,2026-06-17,12,9.14,Open,2024-05-15
+UNH,call,520,2027-06-17,12,9.14,Open,2024-05-15
