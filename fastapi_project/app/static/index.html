@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>My Positions</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        th,
+        td {
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>My Positions</h1>
+    <table id="positionsTable">
+        <thead>
+            <tr>
+                <th>Symbol</th>
+                <th>Type</th>
+                <th>Quantity</th>
+                <th>Avg Price</th>
+                <th>Current Price</th>
+                <th>Value</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <script>
+        async function fetchPositions() {
+            const res = await fetch("/positions/");
+            const positions = await res.json();
+
+            for (const pos of positions) {
+                const row = document.createElement("tr");
+                const currentPrice = await fetchPrice(pos.symbol);
+
+                const value = (currentPrice && pos.quantity)
+                    ? (currentPrice * pos.quantity).toFixed(2)
+                    : "N/A";
+
+                row.innerHTML = `
+                    <td>${pos.symbol}</td>
+                    <td>${pos.position_type}</td>
+                    <td>${pos.quantity}</td>
+                    <td>${pos.average_price}</td>
+                    <td>${currentPrice || "?"}</td>
+                    <td>${value}</td>
+                `;
+
+                document.querySelector("#positionsTable tbody").appendChild(row);
+            }
+        }
+
+        async function fetchPrice(symbol) {
+            try {
+                const res = await fetch(`/tickers/?symbol=${symbol}`);
+                const tickers = await res.json();
+                const ticker = Array.isArray(tickers) ? tickers.find(t => t.symbol === symbol) : null;
+                return ticker?.last_price ? parseFloat(ticker.last_price) : null;
+            } catch {
+                return null;
+            }
+        }
+
+        fetchPositions();
+    </script>
+</body>
+
+</html>
