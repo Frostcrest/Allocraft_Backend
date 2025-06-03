@@ -1,24 +1,29 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, Float
 from .database import Base
+
 
 class Position(Base):
     __tablename__ = "positions"
 
     id = Column(Integer, primary_key=True, index=True)
     symbol = Column(String, index=True)
-    position_type = Column(String)  # e.g., 'stock', 'call', 'put'
-    quantity = Column(Float)
-    average_price = Column(Float)
-    expiry = Column(String, nullable=True)  # only for options
-    strike_price = Column(Float, nullable=True)  # only for options
-    side = Column(String, nullable=True)  # e.g., 'long', 'short'
+    quantity = Column(Integer)
+    average_price = Column(Float, nullable=True)  # Optional field for average price
 
-    # Optional: link to ticker or user
-    # ticker_id = Column(Integer, ForeignKey("tickers.id"), nullable=True)
+    
+class OptionPosition(Base):
+    __tablename__ = "option_positions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    symbol = Column(String, index=True)
+    option_type = Column(String)  # 'call' or 'put'
+    strike_price = Column(Float)
+    expiration_date = Column(String)  # use Date if you want more type safety
+    quantity = Column(Integer)
 
 
 class Ticker(Base):
+    """SQLAlchemy model for a market ticker."""
     __tablename__ = "tickers"
 
     id = Column(Integer, primary_key=True, index=True)
