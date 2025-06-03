@@ -20,21 +20,6 @@ class StockRead(StockBase):
     class Config:
         orm_mode = True
 
-class OptionPositionBase(BaseModel):
-    symbol: str
-    option_type: str
-    strike_price: float
-    expiration_date: str
-    quantity: int
-
-class OptionPositionCreate(OptionPositionBase):
-    pass
-
-class OptionPositionRead(OptionPositionBase):
-    id: int
-
-    class Config:
-        orm_mode = True
 
 # This file defines the Pydantic schemas for the Ticker model.
 class TickerBase(BaseModel):
@@ -54,6 +39,25 @@ class TickerCreate(BaseModel):
     
 class TickerRead(TickerBase):
     """Schema for reading a ticker from the database."""
+    id: int
+
+    class Config:
+        orm_mode = True
+
+class OptionBase(BaseModel):
+    ticker: str = Field(..., description="Underlying stock ticker")
+    option_type: Literal["Call", "Put"] = Field(..., description="Type of option contract")
+    strike_price: float = Field(..., description="Strike price of the option")
+    expiry_date: date = Field(..., description="Option expiration date")
+    contracts: float = Field(..., description="Number of contracts")
+    cost: float = Field(..., description="Total premium paid/received")
+    market_price_per_contract: Optional[float] = Field(None, description="Current market price per contract")
+    status: Literal["Open", "Closed"] = Field("Open", description="Contract status")
+
+class OptionCreate(OptionBase):
+    pass
+
+class OptionRead(OptionBase):
     id: int
 
     class Config:

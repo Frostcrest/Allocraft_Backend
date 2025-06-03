@@ -13,17 +13,6 @@ class Stock(Base):
     status = Column(String, default="Open")  # "Open" or "Sold"
     entry_date = Column(String)  # Use Date if you want more type safety
 
-    
-class OptionPosition(Base):
-    __tablename__ = "option_positions"
-
-    id = Column(Integer, primary_key=True, index=True)
-    symbol = Column(String, index=True)
-    option_type = Column(String)  # 'call' or 'put'
-    strike_price = Column(Float)
-    expiration_date = Column(String)  # use Date if you want more type safety
-    quantity = Column(Integer)
-
 
 class Ticker(Base):
     """SQLAlchemy model for a market ticker."""
@@ -38,3 +27,17 @@ class Ticker(Base):
     volume = Column(String, nullable=True)
     market_cap = Column(String, nullable=True)
     timestamp = Column(String, nullable=True)  # Use appropriate type for timestamp if needed
+
+
+class Option(Base):
+    __tablename__ = "options"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ticker = Column(String, index=True)
+    option_type = Column(String)  # "Call" or "Put"
+    strike_price = Column(Float)
+    expiry_date = Column(String)  # Use Date if you want more type safety
+    contracts = Column(Float)
+    cost = Column(Float)
+    market_price_per_contract = Column(Float, nullable=True)
+    status = Column(String, default="Open")  # "Open" or "Closed"

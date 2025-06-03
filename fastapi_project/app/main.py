@@ -51,6 +51,27 @@ def delete_stock(stock_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Stock not found")
     return {"detail": "Stock deleted"}
 
+# --- Option Endpoints ---
+
+@app.get("/options/", response_model=list[schemas.OptionRead])
+def read_options(db: Session = Depends(get_db)):
+    return crud.get_options(db)
+
+@app.post("/options/", response_model=schemas.OptionRead)
+def create_option(option: schemas.OptionCreate, db: Session = Depends(get_db)):
+    return crud.create_option(db, option)
+
+@app.put("/options/{option_id}", response_model=schemas.OptionRead)
+def update_option(option_id: int, option: schemas.OptionCreate, db: Session = Depends(get_db)):
+    return crud.update_option(db, option_id, option)
+
+@app.delete("/options/{option_id}")
+def delete_option(option_id: int, db: Session = Depends(get_db)):
+    success = crud.delete_option(db, option_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Option not found")
+    return {"detail": "Option deleted"}
+
 # --- Ticker Endpoints ---
 @app.post("/tickers/", response_model=schemas.TickerRead, tags=["Tickers"])
 def create_ticker_endpoint(ticker: schemas.TickerCreate, db: Session = Depends(get_db)):
