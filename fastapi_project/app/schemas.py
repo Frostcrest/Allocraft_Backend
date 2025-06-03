@@ -1,16 +1,20 @@
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, Field
+from typing import Optional, Literal
+from datetime import date
 
 
-class PositionBase(BaseModel):
-    symbol: str
-    quantity: int
-    average_price: Optional[float] = None
+class StockBase(BaseModel):
+    ticker: str = Field(..., description="Stock ticker symbol")
+    shares: float = Field(..., description="Number of shares owned")
+    cost_basis: float = Field(..., description="Cost per share")
+    market_price: Optional[float] = Field(None, description="Current market price per share")
+    status: Literal["Open", "Sold"] = Field("Open", description="Position status")
+    entry_date: Optional[date] = Field(None, description="Date position was opened")
 
-class PositionCreate(PositionBase):
+class StockCreate(StockBase):
     pass
 
-class PositionRead(PositionBase):
+class StockRead(StockBase):
     id: int
 
     class Config:

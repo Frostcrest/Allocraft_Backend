@@ -1,14 +1,17 @@
-from sqlalchemy import Column, Integer, String, Float
+from sqlalchemy import Column, Integer, String, Float, Date
 from .database import Base
 
 
-class Position(Base):
-    __tablename__ = "positions"
+class Stock(Base):
+    __tablename__ = "stocks"
 
     id = Column(Integer, primary_key=True, index=True)
-    symbol = Column(String, index=True)
-    quantity = Column(Integer)
-    average_price = Column(Float, nullable=True)  # Optional field for average price
+    ticker = Column(String, index=True)
+    shares = Column(Float)
+    cost_basis = Column(Float)
+    market_price = Column(Float, nullable=True)
+    status = Column(String, default="Open")  # "Open" or "Sold"
+    entry_date = Column(String)  # Use Date if you want more type safety
 
     
 class OptionPosition(Base):
