@@ -220,45 +220,6 @@ def delete_ticker(db: Session, ticker_id: int):
         return True
     raise HTTPException(status_code=404, detail="Ticker not found.")
 
-# --- LEAP CRUD ---
-
-def get_leaps(db: Session):
-    return db.query(models.LEAP).all()
-
-def create_leap(db: Session, leap: schemas.LEAPCreate):
-    current_price = fetch_yf_price(leap.ticker)
-    db_leap = models.LEAP(
-        ticker=leap.ticker,
-        contract_info=leap.contract_info,
-        cost=leap.cost,
-        current_price=current_price,
-        expiry_date=str(leap.expiry_date)
-    )
-    db.add(db_leap)
-    db.commit()
-    db.refresh(db_leap)
-    return db_leap
-
-def update_leap(db: Session, leap_id: int, leap_data: schemas.LEAPCreate):
-    db_leap = db.query(models.LEAP).filter(models.LEAP.id == leap_id).first()
-    if db_leap:
-        db_leap.ticker = leap_data.ticker
-        db_leap.contract_info = leap_data.contract_info
-        db_leap.cost = leap_data.cost
-        db_leap.current_price = fetch_yf_price(leap_data.ticker)
-        db_leap.expiry_date = str(leap_data.expiry_date)
-        db.commit()
-        db.refresh(db_leap)
-    return db_leap
-
-def delete_leap(db: Session, id: int):
-    leap = db.query(models.LEAP).filter(models.LEAP.id == id).first()
-    if leap:
-        db.delete(leap)
-        db.commit()
-        return True
-    return False
-
 # --- WheelStrategy CRUD ---
 
 def get_wheels(db: Session):

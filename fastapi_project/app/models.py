@@ -47,17 +47,6 @@ class Option(Base):
     current_price = Column(Float, nullable=True)  # <-- Add this
 
 
-class LEAP(Base):
-    __tablename__ = "leaps"
-
-    id = Column(Integer, primary_key=True, index=True)
-    ticker = Column(String, index=True)
-    contract_info = Column(String)  # e.g., "$150 Call Jan 2026"
-    cost = Column(Float)
-    current_price = Column(Float, nullable=True)  # <-- Add this
-    expiry_date = Column(String)  # Use Date if you want more type safety
-
-
 class WheelStrategy(Base):
     __tablename__ = "wheel_strategies"
 

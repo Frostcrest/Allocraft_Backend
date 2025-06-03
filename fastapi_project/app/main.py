@@ -115,27 +115,6 @@ def delete_ticker(ticker_id: int, db: Session = Depends(get_db)):
     """Delete a ticker by ID."""
     return crud.delete_ticker(db, ticker_id)
 
-# --- LEAP Endpoints ---
-
-@app.get("/leaps/", response_model=list[schemas.LEAPRead])
-def read_leaps(db: Session = Depends(get_db)):
-    return crud.get_leaps(db)
-
-@app.post("/leaps/", response_model=schemas.LEAPRead)
-def create_leap(leap: schemas.LEAPCreate, db: Session = Depends(get_db)):
-    return crud.create_leap(db, leap)
-
-@app.put("/leaps/{leap_id}", response_model=schemas.LEAPRead)
-def update_leap(leap_id: int, leap: schemas.LEAPCreate, db: Session = Depends(get_db)):
-    return crud.update_leap(db, leap_id, leap)
-
-@app.delete("/leaps/{leap_id}")
-def delete_leap(leap_id: int, db: Session = Depends(get_db)):
-    success = crud.delete_leap(db, leap_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="LEAP not found")
-    return {"detail": "LEAP deleted"}
-
 # --- WheelStrategy Endpoints ---
 
 @app.get("/wheels/", response_model=list[schemas.WheelStrategyRead])
