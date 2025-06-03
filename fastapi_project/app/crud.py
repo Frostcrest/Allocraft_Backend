@@ -3,38 +3,43 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from . import models, schemas
 
-from app.schemas import PositionCreate
 
-# Positions CRUD
+# --- Stock CRUD ---
 
-def get_positions(db: Session):
-    return db.query(models.Position).all()
+def get_stocks(db: Session):
+    return db.query(models.Stock).all()
 
-def create_position(db: Session, position: PositionCreate):
-    db_position = models.Position(
-        symbol=position.symbol,
-        quantity=position.quantity,
-        average_price=position.average_price
+def create_stock(db: Session, stock: schemas.StockCreate):
+    db_stock = models.Stock(
+        ticker=stock.ticker,
+        shares=stock.shares,
+        cost_basis=stock.cost_basis,
+        market_price=stock.market_price,
+        status=stock.status,
+        entry_date=str(stock.entry_date) if stock.entry_date else None
     )
-    db.add(db_position)
+    db.add(db_stock)
     db.commit()
-    db.refresh(db_position)
-    return db_position
+    db.refresh(db_stock)
+    return db_stock
 
-def update_position(db: Session, position_id: int, position_data: PositionCreate):
-    db_position = db.query(models.Position).filter(models.Position.id == position_id).first()
-    if db_position:
-        db_position.symbol = position_data.symbol
-        db_position.quantity = position_data.quantity
-        db_position.average_price = position_data.average_price
+def update_stock(db: Session, stock_id: int, stock_data: schemas.StockCreate):
+    db_stock = db.query(models.Stock).filter(models.Stock.id == stock_id).first()
+    if db_stock:
+        db_stock.ticker = stock_data.ticker
+        db_stock.shares = stock_data.shares
+        db_stock.cost_basis = stock_data.cost_basis
+        db_stock.market_price = stock_data.market_price
+        db_stock.status = stock_data.status
+        db_stock.entry_date = str(stock_data.entry_date) if stock_data.entry_date else None
         db.commit()
-        db.refresh(db_position)
-    return db_position
+        db.refresh(db_stock)
+    return db_stock
 
-def delete_position(db: Session, id: int):
-    pos = db.query(models.Position).filter(models.Position.id == id).first()
-    if pos:
-        db.delete(pos)
+def delete_stock(db: Session, id: int):
+    stock = db.query(models.Stock).filter(models.Stock.id == id).first()
+    if stock:
+        db.delete(stock)
         db.commit()
         return True
     return False

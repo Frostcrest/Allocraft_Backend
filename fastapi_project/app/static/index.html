@@ -36,9 +36,15 @@
         <h2>Stocks</h2>
         <form id="stockForm">
             <input type="hidden" name="id" />
-            <input name="symbol" placeholder="Symbol" required />
-            <input name="quantity" type="number" min="1" placeholder="Quantity" required />
-            <input name="average_price" type="number" step="0.01" min="0" placeholder="Average Price" required />
+            <input name="ticker" placeholder="Ticker" required />
+            <input name="shares" type="number" min="0" step="any" placeholder="Shares" required />
+            <input name="cost_basis" type="number" step="0.01" min="0" placeholder="Cost Basis" required />
+            <input name="market_price" type="number" step="0.01" min="0" placeholder="Market Price" />
+            <select name="status" required>
+                <option value="Open">Open</option>
+                <option value="Sold">Sold</option>
+            </select>
+            <input name="entry_date" type="date" placeholder="Entry Date" />
             <button type="submit">Add / Update Stock</button>
             <button type="button" id="cancelStockEdit" style="display:none;">Cancel</button>
         </form>
@@ -46,9 +52,12 @@
         <table id="stocksTable">
             <thead>
                 <tr>
-                    <th>Symbol</th>
-                    <th>Quantity</th>
-                    <th>Average Price</th>
+                    <th>Ticker</th>
+                    <th>Shares</th>
+                    <th>Cost Basis</th>
+                    <th>Market Price</th>
+                    <th>Status</th>
+                    <th>Entry Date</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -99,22 +108,25 @@
         let editingStockId = null;
 
         async function fetchStocks() {
-            const res = await fetch("/positions/?type=stock");
+            const res = await fetch("/stocks/");
             const stocks = await res.json();
             renderStocks(stocks);
         }
 
         function renderStocks(stocks) {
             stocksTableBody.innerHTML = "";
-            stocks.forEach(pos => {
+            stocks.forEach(stock => {
                 const tr = document.createElement("tr");
                 tr.innerHTML = `
-                    <td>${pos.symbol}</td>
-                    <td>${pos.quantity}</td>
-                    <td>${pos.average_price?.toFixed(2) ?? ""}</td>
+                    <td>${stock.ticker}</td>
+                    <td>${stock.shares}</td>
+                    <td>${stock.cost_basis?.toFixed(2) ?? ""}</td>
+                    <td>${stock.market_price !== null && stock.market_price !== undefined ? stock.market_price.toFixed(2) : ""}</td>
+                    <td>${stock.status}</td>
+                    <td>${stock.entry_date ?? ""}</td>
                     <td>
-                        <button onclick="startStockEdit(${pos.id})">Edit</button>
-                        <button onclick="deleteStock(${pos.id})">Delete</button>
+                        <button onclick="startStockEdit(${stock.id})">Edit</button>
+                        <button onclick="deleteStock(${stock.id})">Delete</button>
                     </td>
                 `;
                 stocksTableBody.appendChild(tr);
@@ -123,33 +135,37 @@
 
         function resetStockForm() {
             stockForm.id.value = "";
-            stockForm.symbol.value = "";
-            stockForm.quantity.value = "";
-            stockForm.average_price.value = "";
+            stockForm.ticker.value = "";
+            stockForm.shares.value = "";
+            stockForm.cost_basis.value = "";
+            stockForm.market_price.value = "";
+            stockForm.status.value = "Open";
+            stockForm.entry_date.value = "";
             editingStockId = null;
             cancelStockEditBtn.style.display = "none";
         }
 
-        function startStockEdit(id) {
-            fetch(`/positions/${id}`)
-                .then(res => {
-                    if (!res.ok) throw new Error("Position not found");
-                    return res.json();
-                })
-                .then(pos => {
-                    if (pos.type !== 'stock') {
-                        alert("This is not a stock position.");
+        window.startStockEdit = function (id) {
+            fetch(`/stocks/`)
+                .then(res => res.json())
+                .then(stocks => {
+                    const stock = stocks.find(s => s.id === id);
+                    if (!stock) {
+                        alert("Stock not found.");
                         return;
                     }
-                    stockForm.id.value = pos.id;
-                    stockForm.symbol.value = pos.symbol;
-                    stockForm.quantity.value = pos.quantity;
-                    stockForm.average_price.value = pos.average_price ?? "";
-                    editingStockId = pos.id;
+                    stockForm.id.value = stock.id;
+                    stockForm.ticker.value = stock.ticker;
+                    stockForm.shares.value = stock.shares;
+                    stockForm.cost_basis.value = stock.cost_basis ?? "";
+                    stockForm.market_price.value = stock.market_price ?? "";
+                    stockForm.status.value = stock.status ?? "Open";
+                    stockForm.entry_date.value = stock.entry_date ?? "";
+                    editingStockId = stock.id;
                     cancelStockEditBtn.style.display = "inline";
                 })
                 .catch(err => alert(err.message));
-        }
+        };
 
         cancelStockEditBtn.addEventListener("click", e => {
             e.preventDefault();
@@ -159,22 +175,24 @@
         stockForm.addEventListener("submit", async e => {
             e.preventDefault();
             const data = {
-                symbol: stockForm.symbol.value.trim().toUpperCase(),
-                quantity: parseInt(stockForm.quantity.value),
-                average_price: parseFloat(stockForm.average_price.value),
-                type: "stock"
+                ticker: stockForm.ticker.value.trim().toUpperCase(),
+                shares: parseFloat(stockForm.shares.value),
+                cost_basis: parseFloat(stockForm.cost_basis.value),
+                market_price: stockForm.market_price.value ? parseFloat(stockForm.market_price.value) : null,
+                status: stockForm.status.value,
+                entry_date: stockForm.entry_date.value || null
             };
 
             try {
                 let res;
                 if (editingStockId) {
-                    res = await fetch(`/positions/${editingStockId}`, {
+                    res = await fetch(`/stocks/${editingStockId}`, {
                         method: "PUT",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify(data),
                     });
                 } else {
-                    res = await fetch("/positions/", {
+                    res = await fetch("/stocks/", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify(data),
@@ -183,26 +201,25 @@
 
                 if (!res.ok) {
                     const errData = await res.json();
-                    throw new Error(errData.detail || "Failed to save position");
+                    throw new Error(errData.detail || "Failed to save stock");
                 }
 
                 resetStockForm();
                 fetchStocks();
-                fetchOptions(); // refresh options just in case
             } catch (err) {
                 alert(err.message);
             }
         });
 
-        async function deleteStock(id) {
-            if (!confirm("Are you sure you want to delete this stock position?")) return;
-            const res = await fetch(`/positions/${id}`, { method: "DELETE" });
+        window.deleteStock = async function (id) {
+            if (!confirm("Are you sure you want to delete this stock?")) return;
+            const res = await fetch(`/stocks/${id}`, { method: "DELETE" });
             if (res.ok) {
                 fetchStocks();
             } else {
-                alert("Failed to delete position");
+                alert("Failed to delete stock");
             }
-        }
+        };
 
         // OPTIONS
         const optionForm = document.getElementById("optionForm");
@@ -288,7 +305,7 @@
             }
         });
 
-        function startOptionEdit(id) {
+        window.startOptionEdit = function (id) {
             fetch(`/option_positions/${id}`)
                 .then(res => {
                     if (!res.ok) throw new Error("Option position not found");
@@ -306,9 +323,9 @@
                     cancelOptionEditBtn.style.display = "inline";
                 })
                 .catch(err => alert(err.message));
-        }
+        };
 
-        async function deleteOption(id) {
+        window.deleteOption = async function (id) {
             if (!confirm("Are you sure you want to delete this option position?")) return;
             const res = await fetch(`/option_positions/${id}`, { method: "DELETE" });
             if (res.ok) {
@@ -316,7 +333,7 @@
             } else {
                 alert("Failed to delete option position");
             }
-        }
+        };
 
         // Initial load
         fetchStocks();

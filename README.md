@@ -18,7 +18,7 @@ _Note: This is only the backend. If you are looking for the main Allocraft proje
 
 1. **Clone the repository** (if you haven't already):
 
-    ```sh
+    ```shcd Allocraft_Backend\Allocraft_Backend
     git clone <your-repo-url>
     cd Allocraft_Backend\Allocraft_Backend
     ```
@@ -26,7 +26,7 @@ _Note: This is only the backend. If you are looking for the main Allocraft proje
 2. **Create a virtual environment** (recommended):
 
     ```sh
-    python -m venv venv
+    py -m venv venv
     venv\Scripts\activate
     ```
 
@@ -39,6 +39,7 @@ _Note: This is only the backend. If you are looking for the main Allocraft proje
 4. **Run the backend server**:
 
     ```sh
+    cd .\fastapi_project\
     uvicorn app.main:app --reload
     ```
 
