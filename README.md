@@ -11,23 +11,23 @@ _Note: This is only the backend. If you are looking for the main Allocraft proje
 
 ## Prerequisites
 
-- Python 3.10+ installed
-- [pip](https://pip.pypa.io/en/stable/installation/) (Python package manager)
+- Python 3.10+ installed (download from [python.org](https://www.python.org/downloads/windows/))
+- [pip](https://pip.pypa.io/en/stable/installation/) (comes with Python)
 
-## Setup Instructions
+## Setup Instructions (Windows)
 
 1. **Clone the repository** (if you haven't already):
 
     ```sh
     git clone <your-repo-url>
-    cd fastapi_project
+    cd Allocraft_Backend\Allocraft_Backend
     ```
 
 2. **Create a virtual environment** (recommended):
 
     ```sh
     python -m venv venv
-    source venv/bin/activate  # On Windows: venv\Scripts\activate
+    venv\Scripts\activate
     ```
 
 3. **Install dependencies**:
@@ -64,9 +64,9 @@ _Note: This is only the backend. If you are looking for the main Allocraft proje
 - **Add a new stock position:**
 
     ```sh
-    curl -X POST http://127.0.0.1:8000/positions/ \
-      -H "Content-Type: application/json" \
-      -d '{"symbol": "AAPL", "quantity": 10, "average_price": 150.0}'
+    curl -X POST http://127.0.0.1:8000/positions/ ^
+      -H "Content-Type: application/json" ^
+      -d "{\"symbol\": \"AAPL\", \"quantity\": 10, \"average_price\": 150.0}"
     ```
 
 - **Get all option positions:**
@@ -78,9 +78,9 @@ _Note: This is only the backend. If you are looking for the main Allocraft proje
 - **Fetch ticker info and add to DB:**
 
     ```sh
-    curl -X POST http://127.0.0.1:8000/tickers/ \
-      -H "Content-Type: application/json" \
-      -d '{"symbol": "AAPL"}'
+    curl -X POST http://127.0.0.1:8000/tickers/ ^
+      -H "Content-Type: application/json" ^
+      -d "{\"symbol\": \"AAPL\"}"
     ```
 
 ## Notes
