@@ -2,11 +2,26 @@ from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app import models, schemas, crud
 from app.database import SessionLocal, engine, Base
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(
     title="Allocraft API",
     description="A clean, well-structured FastAPI backend for positions and tickers management.",
     version="1.0.0"
+)
+
+# CORS configuration
+origins = [
+    "http://localhost:5173",
+    # Add other origins if needed
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,  # Allows your frontend
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 from fastapi.staticfiles import StaticFiles
