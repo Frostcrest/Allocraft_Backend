@@ -1,41 +1,55 @@
-from sqlalchemy.orm import Session
+from twelvedata import TDClient
 from fastapi import HTTPException
-from app import models, schemas
+from sqlalchemy.orm import Session
+from . import models
 
+# Replace with your actual Twelve Data API key
+TD_API_KEY = "59076e2930e5489796d3f74ea7082959"
+td = TDClient(apikey=TD_API_KEY)
 
-def create_item(db: Session, item: schemas.ItemCreate):
-    db_item = models.Item(name=item.name, description=item.description)
-    db.add(db_item)
-    db.commit()
-    db.refresh(db_item)
-    return db_item
+def fetch_ticker_info(symbol: str) -> dict:
+    try:
+        data = td.quote(symbol=symbol).as_json()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to fetch data from Twelve Data: {str(e)}")
 
-def get_items(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.Item).offset(skip).limit(limit).all()
+    if not data or "code" in data:
+        raise HTTPException(status_code=404, detail=f"Ticker '{symbol}' not found.")
 
-def delete_item(db: Session, item_id: int):
-    item = db.query(models.Item).filter(models.Item.id == item_id).first()
-    if item is None:
-        raise HTTPException(status_code=404, detail="Item not found")
-    db.delete(item)
-    db.commit()
-    return {"ok": True}
+    return {
+        "symbol": data.get("symbol"),
+        "name": data.get("name"),
+        "last_price": data.get("close"),
+        "change": data.get("change"),
+        "change_percent": data.get("percent_change"),
+        "volume": data.get("volume"),
+        "market_cap": None,  # Optional, not provided by Twelve Data
+        "timestamp": data.get("datetime"),
+    }
 
+def create_ticker(db: Session, symbol: str) -> models.Ticker:
+    # Check if ticker already exists to avoid duplicates
+    existing = get_ticker_by_symbol(db, symbol)
+    if existing:
+        return existing
 
-def create_ticker(db: Session, ticker: schemas.TickerCreate):
-    db_ticker = models.Ticker(**ticker.dict())
+    # Fetch data from Twelve Data API
+    ticker_data = fetch_ticker_info(symbol)
+
+    # Create and persist the ticker
+    db_ticker = models.Ticker(**ticker_data)
     db.add(db_ticker)
     db.commit()
     db.refresh(db_ticker)
     return db_ticker
 
-def get_tickers(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.Ticker).offset(skip).limit(limit).all()
+def get_ticker_by_symbol(db: Session, symbol: str):
+    return db.query(models.Ticker).filter(models.Ticker.symbol == symbol).first()
 
 def delete_ticker(db: Session, ticker_id: int):
     ticker = db.query(models.Ticker).filter(models.Ticker.id == ticker_id).first()
-    if ticker is None:
-        raise HTTPException(status_code=404, detail="Ticker not found")
-    db.delete(ticker)
-    db.commit()
-    return {"ok": True}
+    if ticker:
+        db.delete(ticker)
+        db.commit()
+        return True
+    return False
