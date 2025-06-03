@@ -1,9 +1,13 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from app import models, schemas, crud
 from app.database import SessionLocal, engine, Base
 from fastapi.middleware.cors import CORSMiddleware
 import yfinance as yf
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, StreamingResponse
+import io
+import csv
 
 app = FastAPI(
     title="Allocraft API",
@@ -24,9 +28,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
@@ -69,6 +70,45 @@ def delete_stock(stock_id: int, db: Session = Depends(get_db)):
     if not success:
         raise HTTPException(status_code=404, detail="Stock not found")
     return {"detail": "Stock deleted"}
+
+@app.get("/stocks/template", tags=["Stocks"])
+def download_stock_csv_template():
+    """
+    Download a CSV template for stock positions.
+    """
+    csv_content = "ticker,shares,cost_basis,status,entry_date\n"
+    csv_content += "AAPL,10,150.00,Open,2024-06-01\n"
+    csv_content += "MSFT,5,320.50,Sold,2024-05-15\n"
+    return StreamingResponse(
+        io.StringIO(csv_content),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=stock_template.csv"}
+    )
+
+@app.post("/stocks/upload", tags=["Stocks"])
+async def upload_stock_csv(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    contents = await file.read()
+    decoded = contents.decode("utf-8").splitlines()
+    reader = csv.DictReader(decoded)
+    created = []
+    for row in reader:
+        try:
+            db_stock = models.Stock(
+                ticker=row["ticker"].strip().upper(),
+                shares=float(row["shares"]),
+                cost_basis=float(row["cost_basis"]),
+                market_price=None,
+                status=row.get("status", "Open"),
+                entry_date=row.get("entry_date") or None,
+                current_price=None,
+                price_last_updated=None,
+            )
+            db.add(db_stock)
+            created.append(db_stock)
+        except Exception:
+            continue
+    db.commit()
+    return {"created": len(created)}
 
 # --- Option Endpoints ---
 
@@ -148,3 +188,107 @@ def get_option_expiries(ticker: str):
         return yf_ticker.options  # This is already a list of strings like ["2024-06-07", ...]
     except Exception:
         return []
+
+# --- Options Template Download ---
+@app.get("/options/template", tags=["Options"])
+def download_options_csv_template():
+    csv_content = "ticker,option_type,strike_price,expiration_date,quantity,premium,status,entry_date\n"
+    csv_content += "AAPL,call,150,2024-07-19,1,2.50,Open,2024-06-01\n"
+    csv_content += "MSFT,put,320,2024-08-16,2,3.10,Closed,2024-05-15\n"
+    return StreamingResponse(
+        io.StringIO(csv_content),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=options_template.csv"}
+    )
+
+@app.post("/options/upload", tags=["Options"])
+async def upload_options_csv(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    contents = await file.read()
+    decoded = contents.decode("utf-8").splitlines()
+    reader = csv.DictReader(decoded)
+    created = []
+    for row in reader:
+        try:
+            db_option = models.Option(
+                ticker=row["ticker"].strip().upper(),
+                option_type=row["option_type"].strip().capitalize(),
+                strike_price=float(row["strike_price"]),
+                expiry_date=row["expiration_date"],
+                contracts=float(row["quantity"]),
+                cost=float(row["premium"]),
+                market_price_per_contract=None,
+                status=row.get("status", "Open"),
+                current_price=None,
+            )
+            db.add(db_option)
+            created.append(db_option)
+        except Exception:
+            continue
+    db.commit()
+    return {"created": len(created)}
+
+# --- Wheel Strategies Template Download ---
+@app.get("/wheels/template", tags=["Wheels"])
+def download_wheels_csv_template():
+    csv_content = "ticker,strike_price,expiration_date,quantity,premium,status,trade_date\n"
+    csv_content += "AAPL,150,2024-07-19,1,2.50,Open,2024-06-01\n"
+    csv_content += "MSFT,320,2024-08-16,2,3.10,Closed,2024-05-15\n"
+    return StreamingResponse(
+        io.StringIO(csv_content),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=wheels_template.csv"}
+    )
+
+@app.post("/wheels/upload", tags=["Wheels"])
+async def upload_wheels_csv(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    contents = await file.read()
+    decoded = contents.decode("utf-8").splitlines()
+    reader = csv.DictReader(decoded)
+    created = []
+    for row in reader:
+        try:
+            db_wheel = models.WheelStrategy(
+                wheel_id=row.get("wheel_id") or f"{row['ticker'].strip().upper()}-W",
+                ticker=row["ticker"].strip().upper(),
+                trade_type=row.get("trade_type", "Sell Put"),
+                trade_date=row.get("trade_date"),
+                strike_price=float(row["strike_price"]) if row.get("strike_price") else None,
+                premium_received=float(row["premium"]) if row.get("premium") else None,
+                status=row.get("status", "Active"),
+            )
+            db.add(db_wheel)
+            created.append(db_wheel)
+        except Exception:
+            continue
+    db.commit()
+    return {"created": len(created)}
+
+@app.post("/refresh_all_prices", tags=["Admin"])
+def refresh_all_prices(db: Session = Depends(get_db)):
+    """
+    Refresh prices for all stocks and options in the database.
+    """
+    # Stocks
+    stocks = db.query(models.Stock).all()
+    for stock in stocks:
+        try:
+            price, updated = crud.fetch_latest_price(stock.ticker)
+            stock.current_price = price
+            stock.price_last_updated = updated
+        except Exception:
+            continue
+
+    # Options
+    options = db.query(models.Option).all()
+    for opt in options:
+        try:
+            price = crud.fetch_option_contract_price(
+                opt.ticker, opt.expiry_date, opt.option_type, opt.strike_price
+            )
+            opt.market_price_per_contract = price
+            opt.current_price = price
+        except Exception:
+            continue
+
+    db.commit()
+    return {"detail": "Prices refreshed"}

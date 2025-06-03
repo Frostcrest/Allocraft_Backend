@@ -34,6 +34,10 @@
     <!-- STOCKS SECTION -->
     <section>
         <h2>Stocks</h2>
+        <button id="downloadStockTemplateBtn" type="button">Download CSV Template</button>
+        <input type="file" id="stockCsvInput" accept=".csv" style="display:none" />
+        <button id="uploadStockCsvBtn" type="button">Upload CSV</button>
+        <span id="uploadStockCsvStatus"></span>
         <form id="stockForm">
             <input type="hidden" name="id" />
             <input name="ticker" placeholder="Ticker" required />
@@ -69,6 +73,10 @@
     <!-- OPTIONS SECTION -->
     <section>
         <h2>Options</h2>
+        <button id="downloadOptionsTemplateBtn" type="button">Download Options CSV Template</button>
+        <input type="file" id="optionsCsvInput" accept=".csv" style="display:none" />
+        <button id="uploadOptionsCsvBtn" type="button">Upload Options CSV</button>
+        <span id="uploadOptionsCsvStatus"></span>
         <form id="optionForm">
             <input type="hidden" name="id" />
             <input name="ticker" placeholder="Ticker" required />
@@ -115,6 +123,10 @@
     <!-- WHEEL STRATEGY SECTION -->
     <section>
         <h2>Wheel Strategies</h2>
+        <button id="downloadWheelsTemplateBtn" type="button">Download Wheel CSV Template</button>
+        <input type="file" id="wheelsCsvInput" accept=".csv" style="display:none" />
+        <button id="uploadWheelsCsvBtn" type="button">Upload Wheel CSV</button>
+        <span id="uploadWheelsCsvStatus"></span>
         <form id="wheelForm">
             <input type="hidden" name="id" />
             <input name="wheel_id" placeholder="Wheel ID (e.g., AAPL-W1)" required />
@@ -159,6 +171,9 @@
         const stockForm = document.getElementById("stockForm");
         const stocksTableBody = document.querySelector("#stocksTable tbody");
         const cancelStockEditBtn = document.getElementById("cancelStockEdit");
+        const stockCsvInput = document.getElementById("stockCsvInput");
+        const uploadStockCsvBtn = document.getElementById("uploadStockCsvBtn");
+        const uploadStockCsvStatus = document.getElementById("uploadStockCsvStatus");
         let editingStockId = null;
 
         async function fetchStocks() {
@@ -563,6 +578,105 @@
                 })
                 .catch(err => alert(err.message));
         };
+
+        // Download CSV template for stocks
+        document.getElementById("downloadStockTemplateBtn").addEventListener("click", function () {
+            window.location.href = "/stocks/template";
+        });
+
+        uploadStockCsvBtn.addEventListener("click", () => stockCsvInput.click());
+
+        stockCsvInput.addEventListener("change", async function () {
+            if (!stockCsvInput.files.length) return;
+            const file = stockCsvInput.files[0];
+            const formData = new FormData();
+            formData.append("file", file);
+
+            uploadStockCsvStatus.textContent = "Uploading...";
+            try {
+                const res = await fetch("/stocks/upload", {
+                    method: "POST",
+                    body: formData,
+                });
+                if (!res.ok) throw new Error("Upload failed");
+                const data = await res.json();
+                // After a successful upload
+                uploadStockCsvStatus.textContent = `Uploaded: ${data.created} stocks`;
+                await refreshAllPrices();
+            } catch (err) {
+                uploadStockCsvStatus.textContent = "Upload failed";
+            }
+            stockCsvInput.value = "";
+        });
+
+        // --- Options ---
+        document.getElementById("downloadOptionsTemplateBtn").addEventListener("click", function () {
+            window.location.href = "/options/template";
+        });
+        const optionsCsvInput = document.getElementById("optionsCsvInput");
+        const uploadOptionsCsvBtn = document.getElementById("uploadOptionsCsvBtn");
+        const uploadOptionsCsvStatus = document.getElementById("uploadOptionsCsvStatus");
+        uploadOptionsCsvBtn.addEventListener("click", () => optionsCsvInput.click());
+        optionsCsvInput.addEventListener("change", async function () {
+            if (!optionsCsvInput.files.length) return;
+            const file = optionsCsvInput.files[0];
+            const formData = new FormData();
+            formData.append("file", file);
+
+            uploadOptionsCsvStatus.textContent = "Uploading...";
+            try {
+                const res = await fetch("/options/upload", {
+                    method: "POST",
+                    body: formData,
+                });
+                if (!res.ok) throw new Error("Upload failed");
+                const data = await res.json();
+                uploadOptionsCsvStatus.textContent = `Uploaded: ${data.created} options`;
+                await refreshAllPrices(); // <-- Call refresh after upload
+            } catch (err) {
+                uploadOptionsCsvStatus.textContent = "Upload failed";
+            }
+            optionsCsvInput.value = "";
+        });
+
+        // --- Wheels ---
+        document.getElementById("downloadWheelsTemplateBtn").addEventListener("click", function () {
+            window.location.href = "/wheels/template";
+        });
+        const wheelsCsvInput = document.getElementById("wheelsCsvInput");
+        const uploadWheelsCsvBtn = document.getElementById("uploadWheelsCsvBtn");
+        const uploadWheelsCsvStatus = document.getElementById("uploadWheelsCsvStatus");
+
+        uploadWheelsCsvBtn.addEventListener("click", () => wheelsCsvInput.click());
+
+        wheelsCsvInput.addEventListener("change", async function () {
+            if (!wheelsCsvInput.files.length) return;
+            const file = wheelsCsvInput.files[0];
+            const formData = new FormData();
+            formData.append("file", file);
+
+            uploadWheelsCsvStatus.textContent = "Uploading...";
+            try {
+                const res = await fetch("/wheels/upload", {
+                    method: "POST",
+                    body: formData,
+                });
+                if (!res.ok) throw new Error("Upload failed");
+                const data = await res.json();
+                uploadWheelsCsvStatus.textContent = `Uploaded: ${data.created} wheels`;
+                await refreshAllPrices(); // <-- Call refresh after upload
+            } catch (err) {
+                uploadWheelsCsvStatus.textContent = "Upload failed";
+            }
+            wheelsCsvInput.value = "";
+        });
+
+        async function refreshAllPrices() {
+            await fetch("/refresh_all_prices", { method: "POST" });
+            fetchStocks();
+            fetchOptions();
+            fetchWheels();
+        }
     </script>
 </body>
 
