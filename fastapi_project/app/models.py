@@ -52,3 +52,16 @@ class LEAP(Base):
     cost = Column(Float)
     current_price = Column(Float, nullable=True)
     expiry_date = Column(String)  # Use Date if you want more type safety
+
+
+class WheelStrategy(Base):
+    __tablename__ = "wheel_strategies"
+
+    id = Column(Integer, primary_key=True, index=True)
+    wheel_id = Column(String, index=True)
+    ticker = Column(String, index=True)
+    trade_type = Column(String)  # "Sell Put", "Assignment", "Sell Call", "Called Away"
+    trade_date = Column(String)  # Use Date if you want more type safety
+    strike_price = Column(Float, nullable=True)
+    premium_received = Column(Float, nullable=True)
+    status = Column(String, default="Active")  # "Active" or "Closed"

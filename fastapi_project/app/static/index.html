@@ -136,6 +136,48 @@
         </table>
     </section>
 
+    <!-- WHEEL STRATEGY SECTION -->
+    <section>
+        <h2>Wheel Strategies</h2>
+        <form id="wheelForm">
+            <input type="hidden" name="id" />
+            <input name="wheel_id" placeholder="Wheel ID (e.g., AAPL-W1)" required />
+            <input name="ticker" placeholder="Ticker" required />
+            <select name="trade_type" required>
+                <option value="" disabled selected>Trade Type</option>
+                <option value="Sell Put">Sell Put</option>
+                <option value="Assignment">Assignment</option>
+                <option value="Sell Call">Sell Call</option>
+                <option value="Called Away">Called Away</option>
+            </select>
+            <input name="trade_date" type="date" placeholder="Trade Date" required />
+            <input name="strike_price" type="number" step="0.01" min="0" placeholder="Strike Price" />
+            <input name="premium_received" type="number" step="0.01" min="0" placeholder="Premium Received" />
+            <select name="status" required>
+                <option value="Active">Active</option>
+                <option value="Closed">Closed</option>
+            </select>
+            <button type="submit">Add / Update Wheel</button>
+            <button type="button" id="cancelWheelEdit" style="display:none;">Cancel</button>
+        </form>
+
+        <table id="wheelsTable">
+            <thead>
+                <tr>
+                    <th>Wheel ID</th>
+                    <th>Ticker</th>
+                    <th>Trade Type</th>
+                    <th>Trade Date</th>
+                    <th>Strike Price</th>
+                    <th>Premium Received</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </section>
+
     <script>
         // STOCKS
         const stockForm = document.getElementById("stockForm");
@@ -501,10 +543,135 @@
             }
         };
 
+        // WHEEL STRATEGY
+        const wheelForm = document.getElementById("wheelForm");
+        const wheelsTableBody = document.querySelector("#wheelsTable tbody");
+        const cancelWheelEditBtn = document.getElementById("cancelWheelEdit");
+        let editingWheelId = null;
+
+        async function fetchWheels() {
+            const res = await fetch("/wheels/");
+            const wheels = await res.json();
+            renderWheels(wheels);
+        }
+
+        function renderWheels(wheels) {
+            wheelsTableBody.innerHTML = "";
+            wheels.forEach(wheel => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td>${wheel.wheel_id}</td>
+                    <td>${wheel.ticker}</td>
+                    <td>${wheel.trade_type}</td>
+                    <td>${wheel.trade_date ?? ""}</td>
+                    <td>${wheel.strike_price !== null && wheel.strike_price !== undefined ? wheel.strike_price.toFixed(2) : ""}</td>
+                    <td>${wheel.premium_received !== null && wheel.premium_received !== undefined ? wheel.premium_received.toFixed(2) : ""}</td>
+                    <td>${wheel.status}</td>
+                    <td>
+                        <button onclick="startWheelEdit(${wheel.id})">Edit</button>
+                        <button onclick="deleteWheel(${wheel.id})">Delete</button>
+                    </td>
+                `;
+                wheelsTableBody.appendChild(tr);
+            });
+        }
+
+        function resetWheelForm() {
+            wheelForm.id.value = "";
+            wheelForm.wheel_id.value = "";
+            wheelForm.ticker.value = "";
+            wheelForm.trade_type.value = "";
+            wheelForm.trade_date.value = "";
+            wheelForm.strike_price.value = "";
+            wheelForm.premium_received.value = "";
+            wheelForm.status.value = "Active";
+            editingWheelId = null;
+            cancelWheelEditBtn.style.display = "none";
+        }
+
+        window.startWheelEdit = function (id) {
+            fetch(`/wheels/`)
+                .then(res => res.json())
+                .then(wheels => {
+                    const wheel = wheels.find(w => w.id === id);
+                    if (!wheel) {
+                        alert("Wheel strategy not found.");
+                        return;
+                    }
+                    wheelForm.id.value = wheel.id;
+                    wheelForm.wheel_id.value = wheel.wheel_id;
+                    wheelForm.ticker.value = wheel.ticker;
+                    wheelForm.trade_type.value = wheel.trade_type;
+                    wheelForm.trade_date.value = wheel.trade_date ?? "";
+                    wheelForm.strike_price.value = wheel.strike_price ?? "";
+                    wheelForm.premium_received.value = wheel.premium_received ?? "";
+                    wheelForm.status.value = wheel.status ?? "Active";
+                    editingWheelId = wheel.id;
+                    cancelWheelEditBtn.style.display = "inline";
+                })
+                .catch(err => alert(err.message));
+        };
+
+        cancelWheelEditBtn.addEventListener("click", e => {
+            e.preventDefault();
+            resetWheelForm();
+        });
+
+        wheelForm.addEventListener("submit", async e => {
+            e.preventDefault();
+            const data = {
+                wheel_id: wheelForm.wheel_id.value,
+                ticker: wheelForm.ticker.value.trim().toUpperCase(),
+                trade_type: wheelForm.trade_type.value,
+                trade_date: wheelForm.trade_date.value,
+                strike_price: wheelForm.strike_price.value ? parseFloat(wheelForm.strike_price.value) : null,
+                premium_received: wheelForm.premium_received.value ? parseFloat(wheelForm.premium_received.value) : null,
+                status: wheelForm.status.value
+            };
+
+            try {
+                let res;
+                if (editingWheelId) {
+                    res = await fetch(`/wheels/${editingWheelId}`, {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(data),
+                    });
+                } else {
+                    res = await fetch("/wheels/", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(data),
+                    });
+                }
+
+                if (!res.ok) {
+                    const errData = await res.json();
+                    throw new Error(errData.detail || "Failed to save wheel strategy");
+                }
+
+                resetWheelForm();
+                fetchWheels();
+            } catch (err) {
+                alert(err.message);
+            }
+        });
+
+        window.deleteWheel = async function (id) {
+            if (!confirm("Are you sure you want to delete this wheel strategy?")) return;
+            const res = await fetch(`/wheels/${id}`, { method: "DELETE" });
+            if (res.ok) {
+                fetchWheels();
+            } else {
+                alert("Failed to delete wheel strategy");
+            }
+        };
+
         // Initial load
         fetchStocks();
         fetchOptions();
         fetchLeaps();
+        fetchWheels();
     </script>
 </body>
 
