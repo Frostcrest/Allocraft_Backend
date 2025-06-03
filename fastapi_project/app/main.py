@@ -116,3 +116,24 @@ def delete_leap(leap_id: int, db: Session = Depends(get_db)):
     if not success:
         raise HTTPException(status_code=404, detail="LEAP not found")
     return {"detail": "LEAP deleted"}
+
+# --- WheelStrategy Endpoints ---
+
+@app.get("/wheels/", response_model=list[schemas.WheelStrategyRead])
+def read_wheels(db: Session = Depends(get_db)):
+    return crud.get_wheels(db)
+
+@app.post("/wheels/", response_model=schemas.WheelStrategyRead)
+def create_wheel(wheel: schemas.WheelStrategyCreate, db: Session = Depends(get_db)):
+    return crud.create_wheel(db, wheel)
+
+@app.put("/wheels/{wheel_id}", response_model=schemas.WheelStrategyRead)
+def update_wheel(wheel_id: int, wheel: schemas.WheelStrategyCreate, db: Session = Depends(get_db)):
+    return crud.update_wheel(db, wheel_id, wheel)
+
+@app.delete("/wheels/{wheel_id}")
+def delete_wheel(wheel_id: int, db: Session = Depends(get_db)):
+    success = crud.delete_wheel(db, wheel_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Wheel strategy not found")
+    return {"detail": "Wheel strategy deleted"}

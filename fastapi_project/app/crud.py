@@ -184,3 +184,45 @@ def delete_leap(db: Session, id: int):
         db.commit()
         return True
     return False
+
+# --- WheelStrategy CRUD ---
+
+def get_wheels(db: Session):
+    return db.query(models.WheelStrategy).all()
+
+def create_wheel(db: Session, wheel: schemas.WheelStrategyCreate):
+    db_wheel = models.WheelStrategy(
+        wheel_id=wheel.wheel_id,
+        ticker=wheel.ticker,
+        trade_type=wheel.trade_type,
+        trade_date=str(wheel.trade_date),
+        strike_price=wheel.strike_price,
+        premium_received=wheel.premium_received,
+        status=wheel.status,
+    )
+    db.add(db_wheel)
+    db.commit()
+    db.refresh(db_wheel)
+    return db_wheel
+
+def update_wheel(db: Session, wheel_id: int, wheel_data: schemas.WheelStrategyCreate):
+    db_wheel = db.query(models.WheelStrategy).filter(models.WheelStrategy.id == wheel_id).first()
+    if db_wheel:
+        db_wheel.wheel_id = wheel_data.wheel_id
+        db_wheel.ticker = wheel_data.ticker
+        db_wheel.trade_type = wheel_data.trade_type
+        db_wheel.trade_date = str(wheel_data.trade_date)
+        db_wheel.strike_price = wheel_data.strike_price
+        db_wheel.premium_received = wheel_data.premium_received
+        db_wheel.status = wheel_data.status
+        db.commit()
+        db.refresh(db_wheel)
+    return db_wheel
+
+def delete_wheel(db: Session, id: int):
+    wheel = db.query(models.WheelStrategy).filter(models.WheelStrategy.id == id).first()
+    if wheel:
+        db.delete(wheel)
+        db.commit()
+        return True
+    return False

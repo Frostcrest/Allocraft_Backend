@@ -78,3 +78,21 @@ class LEAPRead(LEAPBase):
 
     class Config:
         orm_mode = True
+
+class WheelStrategyBase(BaseModel):
+    wheel_id: str = Field(..., description="Unique identifier for wheel strategy (e.g., 'AAPL-W1')")
+    ticker: str = Field(..., description="Stock ticker for wheel strategy")
+    trade_type: Literal["Sell Put", "Assignment", "Sell Call", "Called Away"] = Field(..., description="Type of wheel trade")
+    trade_date: date = Field(..., description="Date of the trade")
+    strike_price: Optional[float] = Field(None, description="Strike price if applicable")
+    premium_received: Optional[float] = Field(None, description="Premium received from trade")
+    status: Literal["Active", "Closed"] = Field("Active", description="Trade status")
+
+class WheelStrategyCreate(WheelStrategyBase):
+    pass
+
+class WheelStrategyRead(WheelStrategyBase):
+    id: int
+
+    class Config:
+        orm_mode = True
