@@ -292,3 +292,28 @@ def refresh_all_prices(db: Session = Depends(get_db)):
 
     db.commit()
     return {"detail": "Prices refreshed"}
+
+@app.get("/options/refresh_prices")
+def refresh_option_prices():
+    """
+    Refresh the market prices of options contracts for all tickers in the database.
+    """
+    db = next(get_db())
+    tickers = db.query(models.Ticker).all()
+    for ticker in tickers:
+        try:
+            # For each ticker, refresh the prices of its associated options
+            options = db.query(models.Option).filter(models.Option.ticker == ticker.symbol).all()
+            for option in options:
+                try:
+                    price = crud.fetch_option_contract_price(
+                        option.ticker, option.expiry_date, option.option_type, option.strike_price
+                    )
+                    option.market_price_per_contract = price
+                    option.current_price = price
+                except Exception:
+                    continue
+        except Exception:
+            continue
+    db.commit()
+    return {"detail": "Option prices refreshed"}
