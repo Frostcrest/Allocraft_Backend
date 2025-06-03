@@ -44,31 +44,46 @@ def delete_stock(db: Session, id: int):
         return True
     return False
 
-# Option Positions CRUD
+# --- Option CRUD ---
 
-def get_option_positions(db: Session):
-    return db.query(models.OptionPosition).all()
+def get_options(db: Session):
+    return db.query(models.Option).all()
 
-def create_option_position(db: Session, option_position: models.OptionPosition):
-    db.add(option_position)
+def create_option(db: Session, option: schemas.OptionCreate):
+    db_option = models.Option(
+        ticker=option.ticker,
+        option_type=option.option_type,
+        strike_price=option.strike_price,
+        expiry_date=str(option.expiry_date),
+        contracts=option.contracts,
+        cost=option.cost,
+        market_price_per_contract=option.market_price_per_contract,
+        status=option.status,
+    )
+    db.add(db_option)
     db.commit()
-    db.refresh(option_position)
-    return option_position
+    db.refresh(db_option)
+    return db_option
 
-def update_option_position(db: Session, id: int, new_data: dict):
-    opt = db.query(models.OptionPosition).filter(models.OptionPosition.id == id).first()
-    if not opt:
-        raise HTTPException(status_code=404, detail="Option position not found")
-    for key, value in new_data.items():
-        setattr(opt, key, value)
-    db.commit()
-    db.refresh(opt)
-    return opt
+def update_option(db: Session, option_id: int, option_data: schemas.OptionCreate):
+    db_option = db.query(models.Option).filter(models.Option.id == option_id).first()
+    if db_option:
+        db_option.ticker = option_data.ticker
+        db_option.option_type = option_data.option_type
+        db_option.strike_price = option_data.strike_price
+        db_option.expiry_date = str(option_data.expiry_date)
+        db_option.contracts = option_data.contracts
+        db_option.cost = option_data.cost
+        db_option.market_price_per_contract = option_data.market_price_per_contract
+        db_option.status = option_data.status
+        db.commit()
+        db.refresh(db_option)
+    return db_option
 
-def delete_option_position(db: Session, id: int):
-    opt = db.query(models.OptionPosition).filter(models.OptionPosition.id == id).first()
-    if opt:
-        db.delete(opt)
+def delete_option(db: Session, id: int):
+    option = db.query(models.Option).filter(models.Option.id == id).first()
+    if option:
+        db.delete(option)
         db.commit()
         return True
     return False
