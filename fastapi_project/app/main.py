@@ -192,7 +192,7 @@ def get_option_expiries(ticker: str):
 # --- Options Template Download ---
 @app.get("/options/template", tags=["Options"])
 def download_options_csv_template():
-    csv_content = "ticker,option_type,strike_price,expiration_date,quantity,premium,status,entry_date\n"
+    csv_content = "ticker,option_type,strike_price,expiration_date,quantity,cost_basis,status,entry_date\n"
     csv_content += "AAPL,call,150,2024-07-19,1,2.50,Open,2024-06-01\n"
     csv_content += "MSFT,put,320,2024-08-16,2,3.10,Closed,2024-05-15\n"
     return StreamingResponse(
@@ -215,7 +215,7 @@ async def upload_options_csv(file: UploadFile = File(...), db: Session = Depends
                 strike_price=float(row["strike_price"]),
                 expiry_date=row["expiration_date"],
                 contracts=float(row["quantity"]),
-                cost=float(row["premium"]),
+                cost_basis=float(row["cost_basis"]),  # <-- Now using cost_basis
                 market_price_per_contract=None,
                 status=row.get("status", "Open"),
                 current_price=None,

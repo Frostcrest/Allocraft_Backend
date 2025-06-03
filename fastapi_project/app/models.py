@@ -41,10 +41,10 @@ class Option(Base):
     strike_price = Column(Float)
     expiry_date = Column(String)  # Use Date if you want more type safety
     contracts = Column(Float)
-    cost = Column(Float)
+    cost_basis = Column(Float)  # <-- Renamed from cost
     market_price_per_contract = Column(Float, nullable=True)
     status = Column(String, default="Open")  # "Open" or "Closed"
-    current_price = Column(Float, nullable=True)  # <-- Add this
+    current_price = Column(Float, nullable=True)
 
 
 class WheelStrategy(Base):

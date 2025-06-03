@@ -52,7 +52,7 @@ class OptionBase(BaseModel):
     strike_price: float = Field(..., description="Strike price of the option")
     expiry_date: date = Field(..., description="Option expiration date")
     contracts: float = Field(..., description="Number of contracts")
-    cost: float = Field(..., description="Total premium paid/received")
+    cost_basis: float = Field(..., description="Cost basis per contract")  # <-- Renamed
     market_price_per_contract: Optional[float] = Field(None, description="Current market price per contract")
     status: Literal["Open", "Closed"] = Field("Open", description="Contract status")
     current_price: Optional[float] = Field(None, description="Current price of the underlying")
