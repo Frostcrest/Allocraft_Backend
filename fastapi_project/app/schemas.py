@@ -24,9 +24,9 @@ class TickerBase(BaseModel):
     market_cap: Optional[str] = None
     timestamp: Optional[str] = None  # You can use datetime if desired
 
-class TickerCreate(TickerBase):
-    pass
-
+class TickerCreate(BaseModel):
+    symbol: str
+    
 class TickerRead(TickerBase):
     id: int
 
