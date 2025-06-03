@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import Optional, Literal
-from datetime import date
+from datetime import date, datetime
 
 
 class StockBase(BaseModel):
@@ -10,6 +10,8 @@ class StockBase(BaseModel):
     market_price: Optional[float] = Field(None, description="Current market price per share")
     status: Literal["Open", "Sold"] = Field("Open", description="Position status")
     entry_date: Optional[date] = Field(None, description="Date position was opened")
+    current_price: Optional[float] = Field(None, description="Latest fetched price")
+    price_last_updated: Optional[datetime] = Field(None, description="Timestamp of last price update")
 
 class StockCreate(StockBase):
     pass
@@ -53,6 +55,7 @@ class OptionBase(BaseModel):
     cost: float = Field(..., description="Total premium paid/received")
     market_price_per_contract: Optional[float] = Field(None, description="Current market price per contract")
     status: Literal["Open", "Closed"] = Field("Open", description="Contract status")
+    current_price: Optional[float] = Field(None, description="Current price of the underlying")
 
 class OptionCreate(OptionBase):
     pass
@@ -67,7 +70,7 @@ class LEAPBase(BaseModel):
     ticker: str = Field(..., description="Underlying stock ticker")
     contract_info: str = Field(..., description="Strike, expiry, type description (e.g., '$150 Call Jan 2026')")
     cost: float = Field(..., description="Premium paid for contract")
-    current_price: Optional[float] = Field(None, description="Current market value of contract")
+    current_price: Optional[float] = Field(None, description="Current price of the underlying")
     expiry_date: date = Field(..., description="Contract expiration date")
 
 class LEAPCreate(LEAPBase):

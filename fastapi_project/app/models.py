@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Float
+from sqlalchemy import Column, Integer, String, Float, DateTime
+from datetime import datetime
 from .database import Base
 
 
@@ -12,6 +13,8 @@ class Stock(Base):
     market_price = Column(Float, nullable=True)
     status = Column(String, default="Open")  # "Open" or "Sold"
     entry_date = Column(String)  # Use Date if you want more type safety
+    current_price = Column(Float, nullable=True)  # New field
+    price_last_updated = Column(DateTime, nullable=True)  # New field
 
 
 class Ticker(Base):
@@ -41,6 +44,7 @@ class Option(Base):
     cost = Column(Float)
     market_price_per_contract = Column(Float, nullable=True)
     status = Column(String, default="Open")  # "Open" or "Closed"
+    current_price = Column(Float, nullable=True)  # <-- Add this
 
 
 class LEAP(Base):
@@ -50,7 +54,7 @@ class LEAP(Base):
     ticker = Column(String, index=True)
     contract_info = Column(String)  # e.g., "$150 Call Jan 2026"
     cost = Column(Float)
-    current_price = Column(Float, nullable=True)
+    current_price = Column(Float, nullable=True)  # <-- Add this
     expiry_date = Column(String)  # Use Date if you want more type safety
 
 

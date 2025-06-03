@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app import models, schemas, crud
 from app.database import SessionLocal, engine, Base
 from fastapi.middleware.cors import CORSMiddleware
+import yfinance as yf
 
 app = FastAPI(
     title="Allocraft API",
@@ -18,7 +19,7 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,  # Allows your frontend
+    allow_origins=["http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -48,8 +49,11 @@ def get_db():
 # --- Stock Endpoints ---
 
 @app.get("/stocks/", response_model=list[schemas.StockRead])
-def read_stocks(db: Session = Depends(get_db)):
-    return crud.get_stocks(db)
+def read_stocks(db: Session = Depends(get_db), refresh_prices: bool = False):
+    """
+    Get all stocks. Optionally refresh prices by passing ?refresh_prices=true
+    """
+    return crud.get_stocks(db, refresh_prices=refresh_prices)
 
 @app.post("/stocks/", response_model=schemas.StockRead)
 def create_stock(stock: schemas.StockCreate, db: Session = Depends(get_db)):
@@ -152,3 +156,15 @@ def delete_wheel(wheel_id: int, db: Session = Depends(get_db)):
     if not success:
         raise HTTPException(status_code=404, detail="Wheel strategy not found")
     return {"detail": "Wheel strategy deleted"}
+
+@app.get("/option_expiries/{ticker}", tags=["Options"])
+def get_option_expiries(ticker: str):
+    """
+    Return all available option expiry dates for the given ticker.
+    """
+    try:
+        ticker = ticker.upper()
+        yf_ticker = yf.Ticker(ticker)
+        return yf_ticker.options
+    except Exception:
+        return []
