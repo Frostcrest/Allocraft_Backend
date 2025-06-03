@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Date
+from sqlalchemy import Column, Integer, String, Float
 from .database import Base
 
 
@@ -41,3 +41,14 @@ class Option(Base):
     cost = Column(Float)
     market_price_per_contract = Column(Float, nullable=True)
     status = Column(String, default="Open")  # "Open" or "Closed"
+
+
+class LEAP(Base):
+    __tablename__ = "leaps"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ticker = Column(String, index=True)
+    contract_info = Column(String)  # e.g., "$150 Call Jan 2026"
+    cost = Column(Float)
+    current_price = Column(Float, nullable=True)
+    expiry_date = Column(String)  # Use Date if you want more type safety
