@@ -141,9 +141,10 @@ def get_option_expiries(ticker: str):
     """
     Return all available option expiry dates for the given ticker.
     """
+    import yfinance as yf
     try:
         ticker = ticker.upper()
         yf_ticker = yf.Ticker(ticker)
-        return yf_ticker.options
+        return yf_ticker.options  # This is already a list of strings like ["2024-06-07", ...]
     except Exception:
         return []
