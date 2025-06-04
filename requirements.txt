@@ -7,3 +7,4 @@ yfinance
 requests
 python-multipart
 passlib[bcrypt]
+python-jose

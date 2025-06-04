@@ -1,3 +1,4 @@
+from app.utils.security import hash_password, verify_password
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from datetime import datetime
@@ -234,3 +235,51 @@ def delete_wheel(db: Session, wheel_id: int):
     db.delete(db_wheel)
     db.commit()
     return True
+
+# --- USER CRUD FUNCTIONS ---
+
+def get_user_by_username(db: Session, username: str):
+    """
+    Retrieve a user by their username.
+    """
+    return db.query(models.User).filter(models.User.username == username).first()
+
+def get_user_by_email(db: Session, email: str):
+    """
+    Retrieve a user by their email.
+    """
+    return db.query(models.User).filter(models.User.email == email).first()
+
+def create_user(db: Session, user: schemas.UserCreate):
+    """
+    Create a new user with hashed password.
+    """
+    db_user = models.User(
+        username=user.username,
+        email=user.email,
+        hashed_password=hash_password(user.password),
+        is_active=True,
+        roles="user"
+    )
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+def authenticate_user(db: Session, username: str, password: str):
+    """
+    Authenticate a user by username and password.
+    Returns the user if authentication is successful, else None.
+    """
+    user = get_user_by_username(db, username)
+    if not user or not verify_password(password, user.hashed_password):
+        return None
+    return user
+
+def user_has_role(user: models.User, role: str) -> bool:
+    """
+    Check if the user has a specific role.
+    """
+    if not user or not user.roles:
+        return False
+    return role in [r.strip() for r in user.roles.split(",")]

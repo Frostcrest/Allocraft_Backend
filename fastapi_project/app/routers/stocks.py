@@ -5,6 +5,7 @@ from app.database import get_db
 from fastapi.responses import StreamingResponse
 import io
 import csv
+from app.dependencies import require_authenticated_user, require_role
 
 router = APIRouter(prefix="/stocks", tags=["Stocks"])
 
@@ -14,7 +15,11 @@ def read_stocks(db: Session = Depends(get_db), refresh_prices: bool = False):
     return crud.get_stocks(db, refresh_prices=refresh_prices)
 
 @router.post("/", response_model=schemas.StockRead)
-def create_stock(stock: schemas.StockCreate, db: Session = Depends(get_db)):
+def create_stock(
+    stock: schemas.StockCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_authenticated_user)  # <-- Require login
+):
     """Add a new stock position."""
     return crud.create_stock(db, stock)
 
@@ -24,7 +29,11 @@ def update_stock(stock_id: int, stock: schemas.StockCreate, db: Session = Depend
     return crud.update_stock(db, stock_id, stock)
 
 @router.delete("/{stock_id}")
-def delete_stock(stock_id: int, db: Session = Depends(get_db)):
+def delete_stock(
+    stock_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role("admin"))  # <-- Require admin role
+):
     """Delete a stock position by its ID."""
     success = crud.delete_stock(db, stock_id)
     if not success:

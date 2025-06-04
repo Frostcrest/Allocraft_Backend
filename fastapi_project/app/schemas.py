@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, Literal
 from datetime import date, datetime
 
@@ -100,3 +100,34 @@ class WheelStrategyRead(WheelStrategyBase):
 
     class Config:
         orm_mode = True
+
+# --- USER SCHEMAS ---
+
+class UserBase(BaseModel):
+    username: str = Field(..., description="Unique username")
+    email: EmailStr = Field(..., description="User email address")
+
+class UserCreate(UserBase):
+    password: str = Field(..., min_length=6, description="User password")
+
+class UserRead(UserBase):
+    id: int
+    is_active: bool
+    roles: str
+
+    class Config:
+        orm_mode = True
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
+# --- JWT Token SCHEMAS ---
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    username: Optional[str] = None
+    roles: Optional[str] = None
