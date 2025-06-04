@@ -172,21 +172,24 @@
     </section>
 
     <script>
-        // STOCKS
+        // --- STOCKS SECTION ---
+        // Get references to stock form and table elements
         const stockForm = document.getElementById("stockForm");
         const stocksTableBody = document.querySelector("#stocksTable tbody");
         const cancelStockEditBtn = document.getElementById("cancelStockEdit");
         const stockCsvInput = document.getElementById("stockCsvInput");
         const uploadStockCsvBtn = document.getElementById("uploadStockCsvBtn");
         const uploadStockCsvStatus = document.getElementById("uploadStockCsvStatus");
-        let editingStockId = null;
+        let editingStockId = null; // Track which stock is being edited
 
+        // Fetch all stocks from the backend and render them in the table
         async function fetchStocks() {
             const res = await fetch("/stocks/");
             const stocks = await res.json();
             renderStocks(stocks);
         }
 
+        // Render the stocks table rows
         function renderStocks(stocks) {
             stocksTableBody.innerHTML = "";
             stocks.forEach(stock => {
@@ -213,18 +216,19 @@
             });
         }
 
+        // Reset the stock form to its default state
         function resetStockForm() {
             stockForm.id.value = "";
             stockForm.ticker.value = "";
             stockForm.shares.value = "";
             stockForm.cost_basis.value = "";
-            // Remove market_price reset
             stockForm.status.value = "Open";
             stockForm.entry_date.value = "";
             editingStockId = null;
             cancelStockEditBtn.style.display = "none";
         }
 
+        // Populate the stock form for editing an existing stock
         window.startStockEdit = function (id) {
             fetch(`/stocks/`)
                 .then(res => res.json())
@@ -238,7 +242,6 @@
                     stockForm.ticker.value = stock.ticker;
                     stockForm.shares.value = stock.shares;
                     stockForm.cost_basis.value = stock.cost_basis ?? "";
-                    // stockForm.market_price.value = stock.market_price ?? "";
                     stockForm.status.value = stock.status ?? "Open";
                     stockForm.entry_date.value = stock.entry_date ?? "";
                     editingStockId = stock.id;
@@ -247,18 +250,19 @@
                 .catch(err => alert(err.message));
         };
 
+        // Cancel editing a stock
         cancelStockEditBtn.addEventListener("click", e => {
             e.preventDefault();
             resetStockForm();
         });
 
+        // Handle stock form submission for add/update
         stockForm.addEventListener("submit", async e => {
             e.preventDefault();
             const data = {
                 ticker: stockForm.ticker.value.trim().toUpperCase(),
                 shares: parseFloat(stockForm.shares.value),
                 cost_basis: parseFloat(stockForm.cost_basis.value),
-                // Remove market_price from payload
                 status: stockForm.status.value,
                 entry_date: stockForm.entry_date.value || null
             };
@@ -266,12 +270,14 @@
             try {
                 let res;
                 if (editingStockId) {
+                    // Update existing stock
                     res = await fetch(`/stocks/${editingStockId}`, {
                         method: "PUT",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify(data),
                     });
                 } else {
+                    // Create new stock
                     res = await fetch("/stocks/", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
@@ -291,6 +297,7 @@
             }
         });
 
+        // Delete a stock by ID
         window.deleteStock = async function (id) {
             if (!confirm("Are you sure you want to delete this stock?")) return;
             const res = await fetch(`/stocks/${id}`, { method: "DELETE" });
@@ -301,26 +308,29 @@
             }
         };
 
-        // OPTIONS
+        // --- OPTIONS SECTION ---
+        // Get references to option form and table elements
         const optionForm = document.getElementById("optionForm");
         const optionsTableBody = document.querySelector("#optionsTable tbody");
         const cancelOptionEditBtn = document.getElementById("cancelOptionEdit");
-        let editingOptionId = null;
+        let editingOptionId = null; // Track which option is being edited
 
+        // Fetch all options from the backend and render them in the table
         async function fetchOptions() {
             const res = await fetch("/options/");
             const options = await res.json();
             renderOptions(options);
         }
 
+        // Render the options table rows
         function renderOptions(options) {
             optionsTableBody.innerHTML = "";
             options.forEach(opt => {
                 const contracts = opt.contracts !== null && opt.contracts !== undefined ? opt.contracts : 0;
                 const costBasis = opt.cost_basis !== null && opt.cost_basis !== undefined ? opt.cost_basis : 0;
-                const totalCost = contracts * costBasis; // <-- New calculation
+                const totalCost = contracts * costBasis; // Calculate total cost
                 const marketPrice = opt.market_price_per_contract !== null && opt.market_price_per_contract !== undefined ? opt.market_price_per_contract : 0;
-                const totalPrice = contracts * marketPrice;
+                const totalPrice = contracts * marketPrice; // Calculate market value
 
                 const tr = document.createElement("tr");
                 tr.innerHTML = `
@@ -343,10 +353,12 @@
             });
         }
 
+        // --- Expiry Dates for Options ---
         // Dynamically populate expiry dates for the selected ticker
         const tickerInput = optionForm.ticker;
         const expiryDateSelect = document.getElementById("expiryDateSelect");
 
+        // Fetch available expiry dates for a given ticker from the backend
         async function fetchExpiryDates(ticker) {
             if (!ticker) return [];
             try {
@@ -359,6 +371,7 @@
             }
         }
 
+        // Update the expiry date dropdown based on the ticker
         async function updateExpiryDates() {
             const ticker = tickerInput.value.trim().toUpperCase();
             expiryDateSelect.innerHTML = `<option value="" disabled selected>Loading...</option>`;
@@ -373,14 +386,17 @@
             });
         }
 
+        // Update expiry dates when ticker input changes or loses focus
         tickerInput.addEventListener("blur", updateExpiryDates);
         tickerInput.addEventListener("change", updateExpiryDates);
 
+        // Cancel editing an option
         cancelOptionEditBtn.addEventListener("click", e => {
             e.preventDefault();
             resetOptionForm();
         });
 
+        // Handle option form submission for add/update
         optionForm.addEventListener("submit", async e => {
             e.preventDefault();
             const data = {
@@ -389,7 +405,7 @@
                 strike_price: parseFloat(optionForm.strike_price.value),
                 expiry_date: optionForm.expiry_date.value,
                 contracts: parseFloat(optionForm.contracts.value),
-                cost_basis: parseFloat(optionForm.cost_basis.value), // <-- Renamed
+                cost_basis: parseFloat(optionForm.cost_basis.value),
                 market_price_per_contract: optionForm.market_price_per_contract.value ? parseFloat(optionForm.market_price_per_contract.value) : null,
                 status: optionForm.status.value
             };
@@ -397,12 +413,14 @@
             try {
                 let res;
                 if (editingOptionId) {
+                    // Update existing option
                     res = await fetch(`/options/${editingOptionId}`, {
                         method: "PUT",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify(data),
                     });
                 } else {
+                    // Create new option
                     res = await fetch("/options/", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
@@ -422,6 +440,7 @@
             }
         });
 
+        // Delete an option by ID
         window.deleteOption = async function (id) {
             if (!confirm("Are you sure you want to delete this option?")) return;
             const res = await fetch(`/options/${id}`, { method: "DELETE" });
@@ -432,18 +451,21 @@
             }
         };
 
-        // WHEEL STRATEGY
+        // --- WHEEL STRATEGY SECTION ---
+        // Get references to wheel form and table elements
         const wheelForm = document.getElementById("wheelForm");
         const wheelsTableBody = document.querySelector("#wheelsTable tbody");
         const cancelWheelEditBtn = document.getElementById("cancelWheelEdit");
-        let editingWheelId = null;
+        let editingWheelId = null; // Track which wheel is being edited
 
+        // Fetch all wheels from the backend and render them in the table
         async function fetchWheels() {
             const res = await fetch("/wheels/");
             const wheels = await res.json();
             renderWheels(wheels);
         }
 
+        // Render the wheels table rows
         function renderWheels(wheels) {
             wheelsTableBody.innerHTML = "";
             wheels.forEach(wheel => {
@@ -465,6 +487,7 @@
             });
         }
 
+        // Reset the option form to its default state
         function resetOptionForm() {
             optionForm.id.value = "";
             optionForm.ticker.value = "";
@@ -472,13 +495,14 @@
             optionForm.strike_price.value = "";
             optionForm.expiry_date.value = "";
             optionForm.contracts.value = "";
-            optionForm.cost_basis.value = ""; // <-- Renamed
+            optionForm.cost_basis.value = "";
             optionForm.market_price_per_contract.value = "";
             optionForm.status.value = "Open";
             editingOptionId = null;
             cancelOptionEditBtn.style.display = "none";
         }
 
+        // Reset the wheel form to its default state
         function resetWheelForm() {
             wheelForm.id.value = "";
             wheelForm.wheel_id.value = "";
@@ -492,6 +516,7 @@
             cancelWheelEditBtn.style.display = "none";
         }
 
+        // Populate the wheel form for editing an existing wheel
         window.startWheelEdit = function (id) {
             fetch(`/wheels/`)
                 .then(res => res.json())
@@ -515,11 +540,13 @@
                 .catch(err => alert(err.message));
         };
 
+        // Cancel editing a wheel
         cancelWheelEditBtn.addEventListener("click", e => {
             e.preventDefault();
             resetWheelForm();
         });
 
+        // Handle wheel form submission for add/update
         wheelForm.addEventListener("submit", async e => {
             e.preventDefault();
             const data = {
@@ -536,12 +563,14 @@
             try {
                 let res;
                 if (editingWheelId) {
+                    // Update existing wheel
                     res = await fetch(`/wheels/${editingWheelId}`, {
                         method: "PUT",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify(data),
                     });
                 } else {
+                    // Create new wheel
                     res = await fetch("/wheels/", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
@@ -561,6 +590,7 @@
             }
         });
 
+        // Delete a wheel by ID
         window.deleteWheel = async function (id) {
             if (!confirm("Are you sure you want to delete this wheel strategy?")) return;
             const res = await fetch(`/wheels/${id}`, { method: "DELETE" });
@@ -571,12 +601,14 @@
             }
         };
 
-        // Initial load
+        // --- INITIAL DATA LOAD ---
+        // Fetch all data when the page loads
         fetchStocks();
         fetchOptions();
         fetchWheels();
 
-        // Add this to your <script> section
+        // --- OPTION EDIT HANDLER ---
+        // Populate the option form for editing an existing option
         window.startOptionEdit = function (id) {
             fetch(`/options/`)
                 .then(res => res.json())
@@ -593,7 +625,6 @@
                     await updateExpiryDates(); // Ensure expiry dates are loaded
                     optionForm.expiry_date.value = opt.expiry_date ?? "";
                     optionForm.contracts.value = opt.contracts ?? "";
-                    // Removed: optionForm.cost.value = opt.cost ?? "";
                     optionForm.cost_basis.value = opt.cost_basis ?? "";
                     optionForm.market_price_per_contract.value = opt.market_price_per_contract ?? "";
                     optionForm.status.value = opt.status ?? "Open";
@@ -603,13 +634,16 @@
                 .catch(err => alert(err.message));
         };
 
+        // --- CSV UPLOADS AND TEMPLATES ---
         // Download CSV template for stocks
         document.getElementById("downloadStockTemplateBtn").addEventListener("click", function () {
             window.location.href = "/stocks/template";
         });
 
+        // Show file picker for stock CSV upload
         uploadStockCsvBtn.addEventListener("click", () => stockCsvInput.click());
 
+        // Handle stock CSV file upload
         stockCsvInput.addEventListener("change", async function () {
             if (!stockCsvInput.files.length) return;
             const file = stockCsvInput.files[0];
@@ -633,7 +667,7 @@
             stockCsvInput.value = "";
         });
 
-        // --- Options ---
+        // Download CSV template for options
         document.getElementById("downloadOptionsTemplateBtn").addEventListener("click", function () {
             window.location.href = "/options/template";
         });
@@ -641,6 +675,7 @@
         const uploadOptionsCsvBtn = document.getElementById("uploadOptionsCsvBtn");
         const uploadOptionsCsvStatus = document.getElementById("uploadOptionsCsvStatus");
         uploadOptionsCsvBtn.addEventListener("click", () => optionsCsvInput.click());
+        // Handle options CSV file upload
         optionsCsvInput.addEventListener("change", async function () {
             if (!optionsCsvInput.files.length) return;
             const file = optionsCsvInput.files[0];
@@ -656,14 +691,14 @@
                 if (!res.ok) throw new Error("Upload failed");
                 const data = await res.json();
                 uploadOptionsCsvStatus.textContent = `Uploaded: ${data.created} options`;
-                await refreshAllPrices(); // <-- Call refresh after upload
+                await refreshAllPrices(); // Refresh prices after upload
             } catch (err) {
                 uploadOptionsCsvStatus.textContent = "Upload failed";
             }
             optionsCsvInput.value = "";
         });
 
-        // --- Wheels ---
+        // Download CSV template for wheels
         document.getElementById("downloadWheelsTemplateBtn").addEventListener("click", function () {
             window.location.href = "/wheels/template";
         });
@@ -673,6 +708,7 @@
 
         uploadWheelsCsvBtn.addEventListener("click", () => wheelsCsvInput.click());
 
+        // Handle wheels CSV file upload
         wheelsCsvInput.addEventListener("change", async function () {
             if (!wheelsCsvInput.files.length) return;
             const file = wheelsCsvInput.files[0];
@@ -688,13 +724,15 @@
                 if (!res.ok) throw new Error("Upload failed");
                 const data = await res.json();
                 uploadWheelsCsvStatus.textContent = `Uploaded: ${data.created} wheels`;
-                await refreshAllPrices(); // <-- Call refresh after upload
+                await refreshAllPrices(); // Refresh prices after upload
             } catch (err) {
                 uploadWheelsCsvStatus.textContent = "Upload failed";
             }
             wheelsCsvInput.value = "";
         });
 
+        // --- PRICE REFRESH ---
+        // Refresh all prices (stocks, options, wheels) by calling backend and then reloading data
         async function refreshAllPrices() {
             await fetch("/refresh_all_prices", { method: "POST" });
             fetchStocks();
@@ -702,9 +740,11 @@
             fetchWheels();
         }
 
+        // --- WHEEL EXPIRY DATES ---
         const wheelTickerInput = wheelForm.ticker;
         const wheelExpiryDateSelect = document.getElementById("wheelExpiryDateSelect");
 
+        // Fetch available expiry dates for a wheel ticker
         async function fetchWheelExpiryDates(ticker) {
             if (!ticker) return [];
             try {
@@ -716,6 +756,7 @@
             }
         }
 
+        // Update the expiry date dropdown for wheels
         async function updateWheelExpiryDates() {
             const ticker = wheelTickerInput.value.trim().toUpperCase();
             wheelExpiryDateSelect.innerHTML = `<option value="" disabled selected>Loading...</option>`;
@@ -729,6 +770,7 @@
             });
         }
 
+        // Update wheel expiry dates when ticker input changes or loses focus
         wheelTickerInput.addEventListener("blur", updateWheelExpiryDates);
         wheelTickerInput.addEventListener("change", updateWheelExpiryDates);
     </script>
