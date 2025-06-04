@@ -162,7 +162,6 @@
                     <th>Trade Date</th>
                     <th>Strike Price</th>
                     <th>Premium Received</th>
-                    <th>Call/Put</th> <!-- New column -->
                     <th>Status</th>
                     <th>Actions</th>
                 </tr>
@@ -455,7 +454,6 @@
                     <td>${wheel.trade_date ?? ""}</td>
                     <td>${wheel.strike_price !== null && wheel.strike_price !== undefined ? wheel.strike_price.toFixed(2) : ""}</td>
                     <td>${wheel.premium_received !== null && wheel.premium_received !== undefined ? wheel.premium_received.toFixed(2) : ""}</td>
-                    <td>${wheel.call_put ?? ""}</td> <!-- New column -->
                     <td>${wheel.status}</td>
                     <td>
                         <button onclick="startWheelEdit(${wheel.id})">Edit</button>
