@@ -91,7 +91,8 @@
                 <!-- Options will be populated dynamically -->
             </select>
             <input name="contracts" type="number" min="1" step="any" placeholder="Contracts" required />
-            <input name="cost" type="number" step="0.01" min="0" placeholder="Total Cost" required />
+            <!-- Removed: <input name="cost" type="number" step="0.01" min="0" placeholder="Total Cost" required /> -->
+            <input name="cost_basis" type="number" step="0.01" min="0" placeholder="Cost Basis" required />
             <input name="market_price_per_contract" type="number" step="0.01" min="0" placeholder="Current Price" />
             <select name="status" required>
                 <option value="Open">Open</option>
@@ -592,7 +593,8 @@
                     await updateExpiryDates(); // Ensure expiry dates are loaded
                     optionForm.expiry_date.value = opt.expiry_date ?? "";
                     optionForm.contracts.value = opt.contracts ?? "";
-                    optionForm.cost.value = opt.cost ?? "";
+                    // Removed: optionForm.cost.value = opt.cost ?? "";
+                    optionForm.cost_basis.value = opt.cost_basis ?? "";
                     optionForm.market_price_per_contract.value = opt.market_price_per_contract ?? "";
                     optionForm.status.value = opt.status ?? "Open";
                     editingOptionId = opt.id;
