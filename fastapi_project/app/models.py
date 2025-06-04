@@ -44,6 +44,7 @@ class Option(Base):
     cost_basis = Column(Float)  # <-- Renamed from cost
     market_price_per_contract = Column(Float, nullable=True)
     status = Column(String, default="Open")  # "Open" or "Closed"
+    #TODO: Fix current_price so that it refreshes correctly
     current_price = Column(Float, nullable=True)
 
 
