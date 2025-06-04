@@ -1,3 +1,3 @@
-ticker,strike_price,expiration_date,quantity,premium,status,trade_date
-AAPL,150,2024-07-19,1,2.50,Open,2024-06-01
-MSFT,320,2024-08-16,2,3.10,Closed,2024-05-15
+ticker,strike_price,expiration_date,quantity,premium,call_put,status,trade_date
+AAPL,150,2024-07-19,1,2.50,Put,Open,2024-06-01
+MSFT,320,2024-08-16,2,3.10,Call,Closed,2024-05-15

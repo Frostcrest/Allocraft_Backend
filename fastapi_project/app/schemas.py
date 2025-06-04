@@ -73,7 +73,8 @@ class WheelStrategyBase(BaseModel):
     trade_date: date = Field(..., description="Date of the trade")
     strike_price: Optional[float] = Field(None, description="Strike price if applicable")
     premium_received: Optional[float] = Field(None, description="Premium received from trade")
-    status: Literal["Active", "Closed"] = Field("Active", description="Trade status")
+    status: Literal["Open", "Active", "Closed"] = Field("Open", description="Trade status")  # <-- Accept "Open"
+    call_put: Optional[str] = Field(None, description="Call or Put")  # <-- New field
 
 class WheelStrategyCreate(WheelStrategyBase):
     pass

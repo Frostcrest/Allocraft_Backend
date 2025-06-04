@@ -58,3 +58,4 @@ class WheelStrategy(Base):
     strike_price = Column(Float, nullable=True)
     premium_received = Column(Float, nullable=True)
     status = Column(String, default="Active")  # "Active" or "Closed"
+    call_put = Column(String, nullable=True)  # <-- New field

@@ -139,7 +139,10 @@
                 <option value="Sell Call">Sell Call</option>
                 <option value="Called Away">Called Away</option>
             </select>
-            <input name="trade_date" type="date" placeholder="Trade Date" required />
+            <select name="trade_date" id="wheelExpiryDateSelect" required>
+                <option value="" disabled selected>Select Expiry Date</option>
+                <!-- Options will be populated dynamically -->
+            </select>
             <input name="strike_price" type="number" step="0.01" min="0" placeholder="Strike Price" />
             <input name="premium_received" type="number" step="0.01" min="0" placeholder="Premium Received" />
             <select name="status" required>
@@ -159,6 +162,7 @@
                     <th>Trade Date</th>
                     <th>Strike Price</th>
                     <th>Premium Received</th>
+                    <th>Call/Put</th> <!-- New column -->
                     <th>Status</th>
                     <th>Actions</th>
                 </tr>
@@ -349,7 +353,7 @@
                 // Call backend endpoint to get expiry dates
                 const res = await fetch(`/option_expiries/${ticker}`);
                 if (!res.ok) return [];
-                return await res.json();
+                return await res.json(); // Expecting [{date: "YYYY-MM-DD", days: N}, ...]
             } catch {
                 return [];
             }
@@ -360,10 +364,11 @@
             expiryDateSelect.innerHTML = `<option value="" disabled selected>Loading...</option>`;
             const expiries = await fetchExpiryDates(ticker);
             expiryDateSelect.innerHTML = `<option value="" disabled selected>Select Expiry Date</option>`;
-            expiries.forEach(date => {
+            expiries.forEach(item => {
+                // item should be {date: "YYYY-MM-DD", days: N}
                 const opt = document.createElement("option");
-                opt.value = date;
-                opt.textContent = date;
+                opt.value = item.date;
+                opt.textContent = `${item.date} (${item.days}d)`;
                 expiryDateSelect.appendChild(opt);
             });
         }
@@ -450,6 +455,7 @@
                     <td>${wheel.trade_date ?? ""}</td>
                     <td>${wheel.strike_price !== null && wheel.strike_price !== undefined ? wheel.strike_price.toFixed(2) : ""}</td>
                     <td>${wheel.premium_received !== null && wheel.premium_received !== undefined ? wheel.premium_received.toFixed(2) : ""}</td>
+                    <td>${wheel.call_put ?? ""}</td> <!-- New column -->
                     <td>${wheel.status}</td>
                     <td>
                         <button onclick="startWheelEdit(${wheel.id})">Edit</button>
@@ -524,7 +530,8 @@
                 trade_date: wheelForm.trade_date.value,
                 strike_price: wheelForm.strike_price.value ? parseFloat(wheelForm.strike_price.value) : null,
                 premium_received: wheelForm.premium_received.value ? parseFloat(wheelForm.premium_received.value) : null,
-                status: wheelForm.status.value
+                status: wheelForm.status.value,
+                expiry_date: wheelForm.expiry_date.value // <-- Add this line
             };
 
             try {
@@ -694,6 +701,36 @@
             fetchOptions();
             fetchWheels();
         }
+
+        const wheelTickerInput = wheelForm.ticker;
+        const wheelExpiryDateSelect = document.getElementById("wheelExpiryDateSelect");
+
+        async function fetchWheelExpiryDates(ticker) {
+            if (!ticker) return [];
+            try {
+                const res = await fetch(`/wheel_expiries/${ticker}`);
+                if (!res.ok) return [];
+                return await res.json();
+            } catch {
+                return [];
+            }
+        }
+
+        async function updateWheelExpiryDates() {
+            const ticker = wheelTickerInput.value.trim().toUpperCase();
+            wheelExpiryDateSelect.innerHTML = `<option value="" disabled selected>Loading...</option>`;
+            const expiries = await fetchWheelExpiryDates(ticker);
+            wheelExpiryDateSelect.innerHTML = `<option value="" disabled selected>Select Expiry Date</option>`;
+            expiries.forEach(item => {
+                const opt = document.createElement("option");
+                opt.value = item.date;
+                opt.textContent = `${item.date} (${item.days}d)`;
+                wheelExpiryDateSelect.appendChild(opt);
+            });
+        }
+
+        wheelTickerInput.addEventListener("blur", updateWheelExpiryDates);
+        wheelTickerInput.addEventListener("change", updateWheelExpiryDates);
     </script>
 </body>
 
