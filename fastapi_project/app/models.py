@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean
 from datetime import datetime
 from .database import Base
 
@@ -83,3 +83,16 @@ class Price(Base):
     price = Column(Float, nullable=False)                   # Price value
     ticker_id = Column(Integer, ForeignKey("tickers.id"), nullable=False) # Associated ticker ID
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False) # When the price was recorded
+
+class User(Base):
+    """
+    Represents an application user with authentication and role-based access.
+    """
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True, nullable=False)
+    email = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True)
+    roles = Column(String, default="user")  # Comma-separated roles, e.g., "user,admin"
