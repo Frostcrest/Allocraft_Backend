@@ -33,7 +33,7 @@ _Note: This is only the backend. If you are looking for the main Allocraft proje
 3. **Install dependencies**:
 
     ```sh
-    pip install fastapi uvicorn sqlalchemy pydantic twelvedata yfinance
+    pip install fastapi uvicorn sqlalchemy pydantic twelvedata yfinance python-multipart
     ```
 
 4. **Run the backend server**:
