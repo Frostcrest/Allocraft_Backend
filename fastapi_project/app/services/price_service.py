@@ -1,6 +1,10 @@
 from datetime import datetime
 import requests
 import yfinance as yf
+from twelvedata import TDClient
+
+TD_API_KEY = "59076e2930e5489796d3f74ea7082959"
+td = TDClient(apikey=TD_API_KEY)
 
 def fetch_latest_price(ticker: str) -> tuple[float, datetime]:
     """
@@ -50,3 +54,26 @@ def fetch_option_contract_price(ticker: str, expiry_date: str, option_type: str,
     except Exception as e:
         print(f"Error fetching option price: {e}")
     return None
+
+def fetch_ticker_info(symbol: str) -> dict:
+    """
+    Fetch detailed information about a ticker symbol using Twelve Data API.
+    Returns a dictionary with ticker information.
+    """
+    try:
+        data = td.quote(symbol=symbol).as_json()
+        if not data or "code" in data:
+            return {}
+        return {
+            "symbol": data.get("symbol"),
+            "name": data.get("name"),
+            "last_price": data.get("close"),
+            "change": data.get("change"),
+            "change_percent": data.get("percent_change"),
+            "volume": data.get("volume"),
+            "market_cap": None,
+            "timestamp": data.get("datetime"),
+        }
+    except Exception as e:
+        print(f"Error fetching ticker info: {e}")
+        return {}
