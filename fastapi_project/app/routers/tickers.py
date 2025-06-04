@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from app import schemas, crud
+from app.dependencies import require_authenticated_user, require_role
 from app.database import get_db
+from app import crud, schemas
 
 router = APIRouter(prefix="/tickers", tags=["Tickers"])
 
@@ -29,3 +30,21 @@ def get_ticker_by_id(ticker_id: int, db: Session = Depends(get_db)):
 def delete_ticker(ticker_id: int, db: Session = Depends(get_db)):
     """Delete a ticker by ID."""
     return crud.delete_ticker(db, ticker_id)
+
+@router.get("/", response_model=list[schemas.StockRead])
+def get_stocks(
+    db: Session = Depends(get_db),
+    current_user=Depends(require_authenticated_user)  # Require login
+):
+    return crud.get_stocks(db)
+
+@router.delete("/{stock_id}")
+def delete_stock(
+    stock_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role("admin"))  # Require admin role
+):
+    success = crud.delete_stock(db, stock_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Stock not found")
+    return {"detail": "Stock deleted"}
