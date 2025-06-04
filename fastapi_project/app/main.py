@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, StreamingResponse
 import io
 import csv
+from datetime import datetime
 
 app = FastAPI(
     title="Allocraft API",
@@ -179,13 +180,39 @@ def delete_wheel(wheel_id: int, db: Session = Depends(get_db)):
 @app.get("/option_expiries/{ticker}", tags=["Options"])
 def get_option_expiries(ticker: str):
     """
-    Return all available option expiry dates for the given ticker.
+    Return all available option expiry dates for the given ticker, with days until expiry.
+    """
+    import yfinance as yf
+    from datetime import datetime
+    try:
+        ticker = ticker.upper()
+        yf_ticker = yf.Ticker(ticker)
+        today = datetime.utcnow().date()
+        expiries = []
+        for date_str in yf_ticker.options:
+            expiry_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+            days = (expiry_date - today).days
+            expiries.append({"date": date_str, "days": days})
+        return expiries
+    except Exception:
+        return []
+
+@app.get("/wheel_expiries/{ticker}", tags=["Wheels"])
+def get_wheel_expiries(ticker: str):
+    """
+    Return all available option expiry dates for the given ticker, with days until expiry.
     """
     import yfinance as yf
     try:
         ticker = ticker.upper()
         yf_ticker = yf.Ticker(ticker)
-        return yf_ticker.options  # This is already a list of strings like ["2024-06-07", ...]
+        today = datetime.utcnow().date()
+        expiries = []
+        for date_str in yf_ticker.options:
+            expiry_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+            days = (expiry_date - today).days
+            expiries.append({"date": date_str, "days": days})
+        return expiries
     except Exception:
         return []
 
@@ -230,9 +257,9 @@ async def upload_options_csv(file: UploadFile = File(...), db: Session = Depends
 # --- Wheel Strategies Template Download ---
 @app.get("/wheels/template", tags=["Wheels"])
 def download_wheels_csv_template():
-    csv_content = "ticker,strike_price,expiration_date,quantity,premium,status,trade_date\n"
-    csv_content += "AAPL,150,2024-07-19,1,2.50,Open,2024-06-01\n"
-    csv_content += "MSFT,320,2024-08-16,2,3.10,Closed,2024-05-15\n"
+    csv_content = "ticker,strike_price,expiration_date,quantity,premium,call_put,status,trade_date\n"
+    csv_content += "AAPL,150,2024-07-19,1,2.50,Put,Open,2024-06-01\n"
+    csv_content += "MSFT,320,2024-08-16,2,3.10,Call,Closed,2024-05-15\n"
     return StreamingResponse(
         io.StringIO(csv_content),
         media_type="text/csv",
@@ -255,6 +282,7 @@ async def upload_wheels_csv(file: UploadFile = File(...), db: Session = Depends(
                 strike_price=float(row["strike_price"]) if row.get("strike_price") else None,
                 premium_received=float(row["premium"]) if row.get("premium") else None,
                 status=row.get("status", "Active"),
+                call_put=row.get("call_put", None),  # <-- New field
             )
             db.add(db_wheel)
             created.append(db_wheel)
