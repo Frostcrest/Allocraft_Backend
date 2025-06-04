@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
 from datetime import datetime
 from .database import Base
 
@@ -72,3 +72,14 @@ class WheelStrategy(Base):
     premium_received = Column(Float, nullable=True)         # Premium received for the trade (optional)
     status = Column(String, default="Active")               # "Active" or "Closed"
     call_put = Column(String, nullable=True)                # "Call" or "Put" (optional, for clarity)
+
+class Price(Base):
+    """
+    Represents a historical or latest price for a ticker.
+    """
+    __tablename__ = "prices"
+
+    id = Column(Integer, primary_key=True, index=True)      # Unique ID for each price row
+    price = Column(Float, nullable=False)                   # Price value
+    ticker_id = Column(Integer, ForeignKey("tickers.id"), nullable=False) # Associated ticker ID
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False) # When the price was recorded

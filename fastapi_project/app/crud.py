@@ -1,186 +1,20 @@
+from sqlalchemy.orm import Session
+from fastapi import HTTPException
+from datetime import datetime
+
+from app import models, schemas
 from app.services.price_service import (
     fetch_latest_price,
     fetch_yf_price,
     fetch_option_contract_price,
+    fetch_ticker_info,
 )
-from fastapi import HTTPException
-from sqlalchemy.orm import Session
-from . import models, schemas
-from datetime import datetime
-import requests
-import yfinance as yf
-from twelvedata import TDClient
 
-# --- Stock CRUD Operations ---
-
-def get_stocks(db: Session, refresh_prices: bool = False):
+def get_ticker_by_symbol(db: Session, symbol: str):
     """
-    Get all stocks from the database.
-    If refresh_prices is True, update their current prices before returning.
+    Retrieve a ticker by its symbol.
     """
-    stocks = db.query(models.Stock).all()
-    if refresh_prices:
-        for stock in stocks:
-            price, updated = fetch_latest_price(stock.ticker)
-            stock.current_price = price
-            stock.price_last_updated = updated
-        db.commit()
-    return stocks
-
-def create_stock(db: Session, stock: schemas.StockCreate):
-    """
-    Create a new stock entry in the database.
-    Fetches the latest price and stores it as current_price.
-    """
-    price, updated = fetch_latest_price(stock.ticker)
-    db_stock = models.Stock(
-        ticker=stock.ticker,
-        shares=stock.shares,
-        cost_basis=stock.cost_basis,
-        market_price=stock.market_price,
-        status=stock.status,
-        entry_date=str(stock.entry_date) if stock.entry_date else None,
-        current_price=price,
-        price_last_updated=updated,
-    )
-    db.add(db_stock)
-    db.commit()
-    db.refresh(db_stock)
-    return db_stock
-
-def update_stock(db: Session, stock_id: int, stock_data: schemas.StockCreate):
-    """
-    Update an existing stock entry by ID.
-    Also refreshes the current price.
-    """
-    db_stock = db.query(models.Stock).filter(models.Stock.id == stock_id).first()
-    if db_stock:
-        db_stock.ticker = stock_data.ticker
-        db_stock.shares = stock_data.shares
-        db_stock.cost_basis = stock_data.cost_basis
-        db_stock.market_price = stock_data.market_price
-        db_stock.status = stock_data.status
-        db_stock.entry_date = str(stock_data.entry_date) if stock_data.entry_date else None
-        # Optionally refresh price on update
-        price, updated = fetch_latest_price(stock_data.ticker)
-        db_stock.current_price = price
-        db_stock.price_last_updated = updated
-        db.commit()
-        db.refresh(db_stock)
-    return db_stock
-
-def delete_stock(db: Session, id: int):
-    """
-    Delete a stock entry by ID.
-    Returns True if deleted, False if not found.
-    """
-    stock = db.query(models.Stock).filter(models.Stock.id == id).first()
-    if stock:
-        db.delete(stock)
-        db.commit()
-        return True
-    return False
-
-# --- Option CRUD Operations ---
-
-def get_options(db: Session):
-    """
-    Get all options from the database.
-    """
-    return db.query(models.Option).all()
-
-def create_option(db: Session, option: schemas.OptionCreate):
-    """
-    Create a new option entry in the database.
-    Fetches the latest price for the option contract.
-    """
-    option_price = fetch_option_contract_price(
-        option.ticker,
-        str(option.expiry_date),
-        option.option_type,
-        option.strike_price
-    )
-    db_option = models.Option(
-        ticker=option.ticker,
-        option_type=option.option_type,
-        strike_price=option.strike_price,
-        expiry_date=str(option.expiry_date),
-        contracts=option.contracts,
-        cost_basis=option.cost_basis,  # Cost per contract
-        market_price_per_contract=option_price,
-        status=option.status,
-        current_price=option_price,
-    )
-    db.add(db_option)
-    db.commit()
-    db.refresh(db_option)
-    return db_option
-
-def update_option(db: Session, option_id: int, option_data: schemas.OptionCreate):
-    """
-    Update an existing option entry by ID.
-    Also refreshes the option's current price.
-    """
-    db_option = db.query(models.Option).filter(models.Option.id == option_id).first()
-    if db_option:
-        db_option.ticker = option_data.ticker
-        db_option.option_type = option_data.option_type
-        db_option.strike_price = option_data.strike_price
-        db_option.expiry_date = str(option_data.expiry_date)
-        db_option.contracts = option_data.contracts
-        db_option.cost_basis = option_data.cost_basis
-        option_price = fetch_option_contract_price(
-            option_data.ticker,
-            str(option_data.expiry_date),
-            option_data.option_type,
-            option_data.strike_price
-        )
-        db_option.market_price_per_contract = option_price
-        db_option.current_price = option_price
-        db_option.status = option_data.status
-        db.commit()
-        db.refresh(db_option)
-    return db_option
-
-def delete_option(db: Session, id: int):
-    """
-    Delete an option entry by ID.
-    Returns True if deleted, False if not found.
-    """
-    option = db.query(models.Option).filter(models.Option.id == id).first()
-    if option:
-        db.delete(option)
-        db.commit()
-        return True
-    return False
-
-# --- Ticker CRUD Operations ---
-
-TD_API_KEY = "59076e2930e5489796d3f74ea7082959"
-td = TDClient(apikey=TD_API_KEY)
-
-def fetch_ticker_info(symbol: str) -> dict:
-    """
-    Fetch ticker info from Twelve Data API.
-    Returns a dictionary with symbol, name, last price, etc.
-    Raises HTTPException if not found or API fails.
-    """
-    try:
-        data = td.quote(symbol=symbol).as_json()
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to fetch data from Twelve Data: {str(e)}")
-    if not data or "code" in data:
-        raise HTTPException(status_code=404, detail=f"Ticker '{symbol}' not found.")
-    return {
-        "symbol": data.get("symbol"),
-        "name": data.get("name"),
-        "last_price": data.get("close"),
-        "change": data.get("change"),
-        "change_percent": data.get("percent_change"),
-        "volume": data.get("volume"),
-        "market_cap": None,
-        "timestamp": data.get("datetime"),
-    }
+    return db.query(models.Ticker).filter(models.Ticker.symbol == symbol).first()
 
 def create_ticker(db: Session, symbol: str) -> models.Ticker:
     """
@@ -191,98 +25,212 @@ def create_ticker(db: Session, symbol: str) -> models.Ticker:
     if existing:
         return existing
     ticker_data = fetch_ticker_info(symbol)
+    if not ticker_data or not ticker_data.get("symbol"):
+        raise HTTPException(status_code=404, detail=f"Ticker '{symbol}' not found.")
     db_ticker = models.Ticker(**ticker_data)
     db.add(db_ticker)
     db.commit()
     db.refresh(db_ticker)
     return db_ticker
 
-def get_ticker_by_symbol(db: Session, symbol: str):
+def get_tickers(db: Session, skip: int = 0, limit: int = 100):
     """
-    Get a ticker by its symbol.
-    Returns the ticker object or None if not found.
+    Retrieve a list of tickers with pagination.
     """
-    return db.query(models.Ticker).filter(models.Ticker.symbol == symbol).first()
+    return db.query(models.Ticker).offset(skip).limit(limit).all()
 
-def get_ticker_by_id(db: Session, ticker_id: int):
+def create_price(db: Session, price: float, ticker_id: int, timestamp: datetime = None):
     """
-    Get a ticker by its ID.
-    Raises HTTPException if not found.
+    Create and persist a new price for a ticker.
     """
-    ticker = db.query(models.Ticker).filter(models.Ticker.id == ticker_id).first()
+    if timestamp is None:
+        timestamp = datetime.utcnow()
+    db_price = models.Price(
+        price=price,
+        ticker_id=ticker_id,
+        timestamp=timestamp
+    )
+    db.add(db_price)
+    db.commit()
+    db.refresh(db_price)
+    return db_price
+
+def get_prices_for_ticker(db: Session, ticker_id: int, skip: int = 0, limit: int = 100):
+    """
+    Retrieve prices for a given ticker with pagination.
+    """
+    return (
+        db.query(models.Price)
+        .filter(models.Price.ticker_id == ticker_id)
+        .order_by(models.Price.timestamp.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+
+def get_latest_price_for_ticker(db: Session, ticker_id: int):
+    """
+    Retrieve the latest price for a given ticker.
+    """
+    return (
+        db.query(models.Price)
+        .filter(models.Price.ticker_id == ticker_id)
+        .order_by(models.Price.timestamp.desc())
+        .first()
+    )
+
+def update_ticker_price(db: Session, symbol: str):
+    """
+    Fetch the latest price for a ticker and store it in the database.
+    """
+    ticker = get_ticker_by_symbol(db, symbol)
     if not ticker:
-        raise HTTPException(status_code=404, detail="Ticker not found.")
-    return ticker
+        raise HTTPException(status_code=404, detail=f"Ticker '{symbol}' not found.")
+    latest_price = fetch_latest_price(symbol)
+    if latest_price is None:
+        raise HTTPException(status_code=400, detail=f"Could not fetch latest price for '{symbol}'.")
+    return create_price(db, price=latest_price, ticker_id=ticker.id)
 
-def get_tickers(db: Session):
+def get_option_contract_price(db: Session, symbol: str, contract_symbol: str):
     """
-    Return all tickers in the database.
+    Fetch the latest price for an option contract.
     """
-    return db.query(models.Ticker).all()
+    price = fetch_option_contract_price(symbol, contract_symbol)
+    if price is None:
+        raise HTTPException(status_code=404, detail=f"Option contract '{contract_symbol}' not found for '{symbol}'.")
+    return price
 
-def delete_ticker(db: Session, ticker_id: int):
+def get_yf_price(db: Session, symbol: str):
     """
-    Delete a ticker by ID.
-    Raises HTTPException if not found.
+    Fetch the latest price for a ticker using yfinance.
     """
-    ticker = db.query(models.Ticker).filter(models.Ticker.id == ticker_id).first()
-    if ticker:
-        db.delete(ticker)
-        db.commit()
-        return True
-    raise HTTPException(status_code=404, detail="Ticker not found.")
+    price = fetch_yf_price(symbol)
+    if price is None:
+        raise HTTPException(status_code=404, detail=f"Could not fetch yfinance price for '{symbol}'.")
+    return price
 
-# --- WheelStrategy CRUD Operations ---
+# --- STOCK CRUD FUNCTIONS ---
+
+def get_stocks(db: Session, refresh_prices: bool = False):
+    """
+    Retrieve all stock positions.
+    """
+    return db.query(models.Stock).all()
+
+def create_stock(db: Session, stock: schemas.StockCreate):
+    """
+    Create and persist a new stock position.
+    """
+    db_stock = models.Stock(**stock.dict())
+    db.add(db_stock)
+    db.commit()
+    db.refresh(db_stock)
+    return db_stock
+
+def update_stock(db: Session, stock_id: int, stock: schemas.StockCreate):
+    """
+    Update an existing stock position.
+    """
+    db_stock = db.query(models.Stock).filter(models.Stock.id == stock_id).first()
+    if not db_stock:
+        raise HTTPException(status_code=404, detail="Stock not found")
+    for key, value in stock.dict().items():
+        setattr(db_stock, key, value)
+    db.commit()
+    db.refresh(db_stock)
+    return db_stock
+
+def delete_stock(db: Session, stock_id: int):
+    """
+    Delete a stock position by its ID.
+    """
+    db_stock = db.query(models.Stock).filter(models.Stock.id == stock_id).first()
+    if not db_stock:
+        return False
+    db.delete(db_stock)
+    db.commit()
+    return True
+
+# --- OPTION CRUD FUNCTIONS ---
+
+def get_options(db: Session):
+    """
+    Retrieve all option contracts.
+    """
+    return db.query(models.Option).all()
+
+def create_option(db: Session, option: schemas.OptionCreate):
+    """
+    Create and persist a new option contract.
+    """
+    db_option = models.Option(**option.dict())
+    db.add(db_option)
+    db.commit()
+    db.refresh(db_option)
+    return db_option
+
+def update_option(db: Session, option_id: int, option: schemas.OptionCreate):
+    """
+    Update an existing option contract.
+    """
+    db_option = db.query(models.Option).filter(models.Option.id == option_id).first()
+    if not db_option:
+        raise HTTPException(status_code=404, detail="Option not found")
+    for key, value in option.dict().items():
+        setattr(db_option, key, value)
+    db.commit()
+    db.refresh(db_option)
+    return db_option
+
+def delete_option(db: Session, option_id: int):
+    """
+    Delete an option contract by its ID.
+    """
+    db_option = db.query(models.Option).filter(models.Option.id == option_id).first()
+    if not db_option:
+        return False
+    db.delete(db_option)
+    db.commit()
+    return True
+
+# --- WHEEL STRATEGY CRUD FUNCTIONS ---
 
 def get_wheels(db: Session):
     """
-    Get all wheel strategies from the database.
+    Retrieve all wheel strategies.
     """
     return db.query(models.WheelStrategy).all()
 
 def create_wheel(db: Session, wheel: schemas.WheelStrategyCreate):
     """
-    Create a new wheel strategy entry in the database.
+    Create and persist a new wheel strategy.
     """
-    db_wheel = models.WheelStrategy(
-        wheel_id=wheel.wheel_id,
-        ticker=wheel.ticker,
-        trade_type=wheel.trade_type,
-        trade_date=str(wheel.trade_date),
-        strike_price=wheel.strike_price,
-        premium_received=wheel.premium_received,
-        status=wheel.status,
-    )
+    db_wheel = models.WheelStrategy(**wheel.dict())
     db.add(db_wheel)
     db.commit()
     db.refresh(db_wheel)
     return db_wheel
 
-def update_wheel(db: Session, wheel_id: int, wheel_data: schemas.WheelStrategyCreate):
+def update_wheel(db: Session, wheel_id: int, wheel: schemas.WheelStrategyCreate):
     """
-    Update an existing wheel strategy entry by ID.
+    Update an existing wheel strategy.
     """
     db_wheel = db.query(models.WheelStrategy).filter(models.WheelStrategy.id == wheel_id).first()
-    if db_wheel:
-        db_wheel.wheel_id = wheel_data.wheel_id
-        db_wheel.ticker = wheel_data.ticker
-        db_wheel.trade_type = wheel_data.trade_type
-        db_wheel.trade_date = str(wheel_data.trade_date)
-        db_wheel.strike_price = wheel_data.strike_price
-        db_wheel.premium_received = wheel_data.premium_received
-        db_wheel.status = wheel_data.status
-        db.commit()
-        db.refresh(db_wheel)
+    if not db_wheel:
+        raise HTTPException(status_code=404, detail="Wheel strategy not found")
+    for key, value in wheel.dict().items():
+        setattr(db_wheel, key, value)
+    db.commit()
+    db.refresh(db_wheel)
     return db_wheel
 
-def delete_wheel(db: Session, id: int):
+def delete_wheel(db: Session, wheel_id: int):
     """
-    Delete a wheel strategy entry by ID.
-    Returns True if deleted, False if not found.
+    Delete a wheel strategy by its ID.
     """
-    wheel = db.query(models.WheelStrategy).filter(models.WheelStrategy.id == id).first()
-    if wheel:
-        db.delete(wheel)
-        db.commit()
-        return True
-    return False
+    db_wheel = db.query(models.WheelStrategy).filter(models.WheelStrategy.id == wheel_id).first()
+    if not db_wheel:
+        return False
+    db.delete(db_wheel)
+    db.commit()
+    return True
