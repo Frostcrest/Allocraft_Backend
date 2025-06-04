@@ -257,9 +257,9 @@ async def upload_options_csv(file: UploadFile = File(...), db: Session = Depends
 # --- Wheel Strategies Template Download ---
 @app.get("/wheels/template", tags=["Wheels"])
 def download_wheels_csv_template():
-    csv_content = "ticker,strike_price,expiration_date,quantity,premium,call_put,status,trade_date\n"
-    csv_content += "AAPL,150,2024-07-19,1,2.50,Put,Open,2024-06-01\n"
-    csv_content += "MSFT,320,2024-08-16,2,3.10,Call,Closed,2024-05-15\n"
+    csv_content = "wheel_id,ticker,trade_type,trade_date,strike_price,premium_received,status\n"
+    csv_content += "AAPL-W1,AAPL,Sell Put,2024-07-19,150,2.50,Open\n"
+    csv_content += "MSFT-W1,MSFT,Sell Call,2024-08-16,320,3.10,Closed\n"
     return StreamingResponse(
         io.StringIO(csv_content),
         media_type="text/csv",
@@ -280,9 +280,8 @@ async def upload_wheels_csv(file: UploadFile = File(...), db: Session = Depends(
                 trade_type=row.get("trade_type", "Sell Put"),
                 trade_date=row.get("trade_date"),
                 strike_price=float(row["strike_price"]) if row.get("strike_price") else None,
-                premium_received=float(row["premium"]) if row.get("premium") else None,
+                premium_received=float(row["premium_received"]) if row.get("premium_received") else None,
                 status=row.get("status", "Active"),
-                call_put=row.get("call_put", None),  # <-- New field
             )
             db.add(db_wheel)
             created.append(db_wheel)
