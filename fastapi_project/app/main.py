@@ -3,9 +3,9 @@ from sqlalchemy.orm import Session
 from app import models, schemas, crud
 from app.database import SessionLocal, engine, Base
 from fastapi.middleware.cors import CORSMiddleware
-import yfinance as yf
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, StreamingResponse
+import yfinance as yf
 import io
 import csv
 from datetime import datetime
@@ -210,8 +210,6 @@ def get_option_expiries(ticker: str):
     Return all available option expiry dates for the given ticker, with days until expiry.
     Used to populate expiry dropdowns in the UI.
     """
-    import yfinance as yf
-    from datetime import datetime
     try:
         ticker = ticker.upper()
         yf_ticker = yf.Ticker(ticker)
@@ -231,7 +229,6 @@ def get_wheel_expiries(ticker: str):
     Return all available option expiry dates for the given ticker, with days until expiry.
     Used for wheel strategy expiry dropdowns in the UI.
     """
-    import yfinance as yf
     try:
         ticker = ticker.upper()
         yf_ticker = yf.Ticker(ticker)
