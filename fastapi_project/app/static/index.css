@@ -1,0 +1,179 @@
+/* 
+    Allocraft Portfolio Manager Stylesheet
+    --------------------------------------
+    This stylesheet provides a clean, modern look for the Allocraft frontend.
+    It is designed to be easy to read and maintain for new developers.
+*/
+
+/* --- Base Styles --- */
+body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #f7f9fb;
+    color: #222;
+    margin: 0;
+    padding: 0;
+}
+
+h1 {
+    text-align: center;
+    margin-top: 32px;
+    margin-bottom: 8px;
+    font-size: 2.2rem;
+    letter-spacing: 1px;
+}
+
+section {
+    background: #fff;
+    margin: 32px auto 0 auto;
+    max-width: 1100px;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+    padding: 32px 32px 24px 32px;
+}
+
+h2 {
+    margin-top: 0;
+    margin-bottom: 18px;
+    font-size: 1.3rem;
+    color: #2a4d7a;
+    border-bottom: 1px solid #e3e8ee;
+    padding-bottom: 6px;
+}
+
+/* --- Table Styles --- */
+table {
+    border-collapse: collapse;
+    width: 100%;
+    margin-bottom: 32px;
+    background: #fafbfc;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+}
+
+th,
+td {
+    padding: 10px 14px;
+    border-bottom: 1px solid #e3e8ee;
+    text-align: left;
+}
+
+th {
+    background: #eaf1fb;
+    font-weight: 600;
+    color: #2a4d7a;
+}
+
+tr:last-child td {
+    border-bottom: none;
+}
+
+/* --- Form Styles --- */
+form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 18px;
+}
+
+form > * {
+    margin: 0 8px 8px 0;
+}
+
+input[type="text"],
+input[type="number"],
+input[type="date"],
+select {
+    padding: 7px 10px;
+    border: 1px solid #bfc9d9;
+    border-radius: 5px;
+    font-size: 1rem;
+    background: #f5f8fa;
+    transition: border 0.2s;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+input[type="date"]:focus,
+select:focus {
+    border: 1.5px solid #2a4d7a;
+    outline: none;
+    background: #fff;
+}
+
+button[type="submit"],
+button[type="button"] {
+    background: #2a4d7a;
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    padding: 8px 18px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+button[type="submit"]:hover,
+button[type="button"]:hover {
+    background: #1b3552;
+}
+
+button[disabled] {
+    background: #bfc9d9 !important;
+    cursor: not-allowed;
+}
+
+.action-btns button {
+    margin-right: 6px;
+}
+
+/* --- Special Buttons --- */
+#refreshPricesBtn {
+    float: right;
+    margin-top: -44px;
+    margin-right: 32px;
+    background: #4caf50;
+    color: #fff;
+    font-weight: 500;
+    padding: 8px 16px;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+#refreshPricesBtn:hover {
+    background: #388e3c;
+}
+
+/* --- Status Coloring --- */
+.status-open {
+    color: #388e3c;
+    font-weight: 600;
+}
+.status-sold, .status-closed {
+    color: #d32f2f;
+    font-weight: 600;
+}
+
+/* --- Responsive Design --- */
+@media (max-width: 900px) {
+    section {
+        padding: 18px 4vw 12px 4vw;
+    }
+    table, th, td {
+        font-size: 0.97rem;
+    }
+}
+@media (max-width: 600px) {
+    section {
+        padding: 8px 2vw 6px 2vw;
+    }
+    table, th, td {
+        font-size: 0.92rem;
+    }
+    h1 {
+        font-size: 1.3rem;
+    }
+}
