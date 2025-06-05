@@ -1,58 +1,85 @@
 # Allocraft Backend
 
-This is the **Allocraft Backend** – a FastAPI-based backend for managing portfolio positions and tickers.  
-_Note: This is only the backend. If you are looking for the main Allocraft project, see the relevant directory in your repository._
+This is the **Allocraft Backend** – a FastAPI-based backend for managing portfolio positions and tickers.
+
+> **Note:** Allocraft now has a production web frontend at [https://allocraft.app](https://allocraft.app).  
+> This repository is for the backend API and local development/testing.  
+> If you want to contribute to the frontend, see the main Allocraft repository.
+
+---
 
 ## Features
 
-- REST API for managing stock and option positions
-- Ticker info fetching via Twelve Data API
-- Simple web UI at `/` for manual testing
+- REST API for managing stocks, options, and wheel strategies
+- Real-time price fetching via Twelve Data and Yahoo Finance APIs
+- CSV import/export for bulk management
+- User authentication and role-based access (JWT)
+- Simple web UI for local testing at `/`
+- Production frontend at [https://allocraft.app](https://allocraft.app)
 
-## Prerequisites
+---
 
-- Python 3.10+ installed (download from [python.org](https://www.python.org/downloads/windows/))
-- [pip](https://pip.pypa.io/en/stable/installation/) (comes with Python)
+## Getting Started (Local Development)
 
-## Setup Instructions (Windows)
+These instructions are for running the backend locally on **Windows**.  
+If you are new to Python or web development, follow each step carefully.
 
-1. **Clone the repository** (if you haven't already):
+### 1. Prerequisites
 
-    ```shcd Allocraft_Backend\Allocraft_Backend
-    git clone <your-repo-url>
-    cd Allocraft_Backend\Allocraft_Backend
-    ```
+- **Python 3.10+**  
+  Download from [python.org](https://www.python.org/downloads/windows/).
+- **pip** (Python package manager)  
+  Comes with Python by default.
 
-2. **Create a virtual environment** (recommended):
+### 2. Clone the Repository
 
-    ```sh
-    py -m venv venv
-    venv\Scripts\activate
-    ```
+Open **Command Prompt** and run:
 
-3. **Install dependencies**:
+```sh
+git clone <your-repo-url>
+cd Allocraft_Backend\Allocraft_Backend
+```
 
-    ```sh
-    pip install fastapi uvicorn sqlalchemy pydantic twelvedata yfinance python-multipart
-    ```
+### 3. Create a Virtual Environment (Recommended)
 
-4. **Run the backend server**:
+```sh
+py -m venv venv
+venv\Scripts\activate
+```
 
-    ```sh
-    cd .\fastapi_project\
-    uvicorn app.main:app --reload
-    ```
+### 4. Install Dependencies
 
-    - The API and web UI will be available at: [http://127.0.0.1:8000/](http://127.0.0.1:8000/)
+Install all required Python packages, including `email-validator` and `passlib` (needed for user registration, email validation, and password hashing):
 
-5. **Access the web UI**:
+```sh
+pip install fastapi uvicorn sqlalchemy pydantic twelvedata yfinance python-multipart email-validator passlib[bcrypt]
+```
 
-    - Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/) in your browser to use the portfolio manager.
+If you see an error about `email-validator` missing, you can also run:
 
-6. **API Documentation**:
+```sh
+pip install "pydantic[email]"
+```
 
-    - Interactive docs: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-    - Alternative docs: [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
+### 5. Run the Backend Server
+
+```sh
+cd .\fastapi_project\
+uvicorn app.main:app --reload
+```
+
+- The API and web UI will be available at: [http://127.0.0.1:8000/](http://127.0.0.1:8000/)
+
+### 6. Access the Web UI
+
+- Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/) in your browser to use the portfolio manager.
+
+### 7. API Documentation
+
+- Interactive docs: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+- Alternative docs: [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
+
+---
 
 ## Example API Usage
 
@@ -83,6 +110,8 @@ _Note: This is only the backend. If you are looking for the main Allocraft proje
       -H "Content-Type: application/json" ^
       -d "{\"symbol\": \"AAPL\"}"
     ```
+
+---
 
 ## Notes
 
