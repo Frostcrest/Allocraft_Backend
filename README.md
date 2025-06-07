@@ -86,21 +86,21 @@ uvicorn app.main:app --reload
 - **Get all stock positions:**
 
     ```sh
-    curl http://127.0.0.1:8000/positions/
+    curl http://127.0.0.1:8000/stocks/
     ```
 
 - **Add a new stock position:**
 
     ```sh
-    curl -X POST http://127.0.0.1:8000/positions/ ^
+    curl -X POST http://127.0.0.1:8000/stocks/ ^
       -H "Content-Type: application/json" ^
-      -d "{\"symbol\": \"AAPL\", \"quantity\": 10, \"average_price\": 150.0}"
+      -d "{\"ticker\": \"AAPL\", \"shares\": 10, \"cost_basis\": 150.0, \"status\": \"Open\"}"
     ```
 
 - **Get all option positions:**
 
     ```sh
-    curl http://127.0.0.1:8000/option_positions/
+    curl http://127.0.0.1:8000/options/
     ```
 
 - **Fetch ticker info and add to DB:**
@@ -115,8 +115,8 @@ uvicorn app.main:app --reload
 
 ## Notes
 
-- The SQLite database file (`test.db`) will be created in the project root.
-- The backend uses the [Twelve Data API](https://twelvedata.com/) for ticker info (see API key in [`app/crud.py`](app/crud.py)).
+- The SQLite database file (`test.db`) will be created in the `fastapi_project` directory.
+- The backend uses the [Twelve Data API](https://twelvedata.com/) and yfinance for ticker and price info.
 - For any issues, check the FastAPI logs in your terminal.
 
 ---
