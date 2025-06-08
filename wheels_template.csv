@@ -1,3 +1,2 @@
-wheel_id,ticker,trade_type,trade_date,strike_price,premium_received,status
-AAPL-W1,AAPL,Sell Put,2024-07-19,150,2.50,Open
-MSFT-W1,MSFT,Sell Call,2024-08-16,320,3.10,Closed
+wheel_id,ticker,trade_date,call_put,sell_put_strike_price,sell_put_open_premium,sell_put_closed_premium,sell_put_status,sell_put_quantity,assignment_strike_price,assignment_shares_quantity,assignment_status,sell_call_strike_price,sell_call_open_premium,sell_call_closed_premium,sell_call_status,sell_call_quantity,called_away_strike_price,called_away_shares_quantity,called_away_status
+AAPL-W1,AAPL,2025-06-08,,150,250,0,Closed,2,150,200,Closed,200,300,0,Closed,2,200,200,Closed
