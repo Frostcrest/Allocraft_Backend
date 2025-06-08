@@ -66,12 +66,7 @@ class WheelStrategy(Base):
     id = Column(Integer, primary_key=True, index=True)
     wheel_id = Column(String, index=True)
     ticker = Column(String, index=True)
-    trade_type = Column(String)
     trade_date = Column(String)
-    strike_price = Column(Float, nullable=True)
-    premium_received = Column(Float, nullable=True)
-    status = Column(String, default="Active")
-    call_put = Column(String, nullable=True)
 
     # New fields for full wheel lifecycle
     sell_put_strike_price = Column(Float, nullable=True)

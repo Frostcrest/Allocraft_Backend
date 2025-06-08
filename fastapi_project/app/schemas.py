@@ -83,12 +83,7 @@ class OptionRead(OptionBase):
 class WheelStrategyBase(BaseModel):
     wheel_id: str
     ticker: str
-    trade_type: Literal["Sell Put", "Assignment", "Sell Call", "Called Away"]
     trade_date: date
-    strike_price: Optional[float] = None
-    premium_received: Optional[float] = None
-    status: Literal["Open", "Active", "Closed"] = "Open"
-    call_put: Optional[str] = None
 
     # New fields for full wheel lifecycle
     sell_put_strike_price: Optional[float] = None
