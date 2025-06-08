@@ -8,4 +8,3 @@ requests
 python-multipart
 passlib[bcrypt]
 python-jose
-email-validator
