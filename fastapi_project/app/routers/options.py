@@ -71,21 +71,3 @@ async def upload_options_csv(file: UploadFile = File(...), db: Session = Depends
             continue
     db.commit()
     return {"created": len(created)}
-
-@router.get("/", response_model=list[schemas.StockRead])
-def get_stocks(
-    db: Session = Depends(get_db),
-    current_user=Depends(require_authenticated_user)  # Require login
-):
-    return crud.get_stocks(db)
-
-@router.delete("/{stock_id}")
-def delete_stock(
-    stock_id: int,
-    db: Session = Depends(get_db),
-    current_user=Depends(require_role("admin"))  # Require admin role
-):
-    success = crud.delete_stock(db, stock_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Stock not found")
-    return {"detail": "Stock deleted"}
