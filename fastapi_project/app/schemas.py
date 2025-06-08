@@ -81,14 +81,35 @@ class OptionRead(OptionBase):
 # These classes define the structure of data for wheel strategy trades.
 
 class WheelStrategyBase(BaseModel):
-    wheel_id: str = Field(..., description="Unique identifier for wheel strategy (e.g., 'AAPL-W1')")
-    ticker: str = Field(..., description="Stock ticker for wheel strategy")
-    trade_type: Literal["Sell Put", "Assignment", "Sell Call", "Called Away"] = Field(..., description="Type of wheel trade")
-    trade_date: date = Field(..., description="Date of the trade")
-    strike_price: Optional[float] = Field(None, description="Strike price if applicable")
-    premium_received: Optional[float] = Field(None, description="Premium received from trade")
-    status: Literal["Open", "Active", "Closed"] = Field("Open", description="Trade status")  # Accepts "Open", "Active", or "Closed"
-    call_put: Optional[str] = Field(None, description="Call or Put")  # Optional, for clarity
+    wheel_id: str
+    ticker: str
+    trade_type: Literal["Sell Put", "Assignment", "Sell Call", "Called Away"]
+    trade_date: date
+    strike_price: Optional[float] = None
+    premium_received: Optional[float] = None
+    status: Literal["Open", "Active", "Closed"] = "Open"
+    call_put: Optional[str] = None
+
+    # New fields for full wheel lifecycle
+    sell_put_strike_price: Optional[float] = None
+    sell_put_open_premium: Optional[float] = None
+    sell_put_closed_premium: Optional[float] = None
+    sell_put_status: Optional[str] = None
+    sell_put_quantity: Optional[int] = None
+
+    assignment_strike_price: Optional[float] = None
+    assignment_shares_quantity: Optional[int] = None
+    assignment_status: Optional[str] = None
+
+    sell_call_strike_price: Optional[float] = None
+    sell_call_open_premium: Optional[float] = None
+    sell_call_closed_premium: Optional[float] = None
+    sell_call_status: Optional[str] = None
+    sell_call_quantity: Optional[int] = None
+
+    called_away_strike_price: Optional[float] = None
+    called_away_shares_quantity: Optional[int] = None
+    called_away_status: Optional[str] = None
 
 class WheelStrategyCreate(WheelStrategyBase):
     """Schema for creating a new wheel strategy trade."""
