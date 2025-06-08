@@ -16,6 +16,7 @@
     <section>
         <h2>Stocks</h2>
         <button id="downloadStockTemplateBtn" type="button">Download CSV Template</button>
+        <button id="exportStocksBtn" type="button">Export Stocks CSV</button>
         <input type="file" id="stockCsvInput" accept=".csv" style="display:none" />
         <button id="uploadStockCsvBtn" type="button">Upload CSV</button>
         <span id="uploadStockCsvStatus"></span>
@@ -55,6 +56,7 @@
     <section>
         <h2>Options</h2>
         <button id="downloadOptionsTemplateBtn" type="button">Download Options CSV Template</button>
+        <button id="exportOptionsBtn" type="button">Export Options CSV</button>
         <input type="file" id="optionsCsvInput" accept=".csv" style="display:none" />
         <button id="uploadOptionsCsvBtn" type="button">Upload Options CSV</button>
         <span id="uploadOptionsCsvStatus"></span>
@@ -107,6 +109,7 @@
     <section>
         <h2>Wheel Strategies</h2>
         <button id="downloadWheelsTemplateBtn" type="button">Download Wheel CSV Template</button>
+        <button id="exportWheelsBtn" type="button">Export Wheels CSV</button>
         <input type="file" id="wheelsCsvInput" accept=".csv" style="display:none" />
         <button id="uploadWheelsCsvBtn" type="button">Upload Wheel CSV</button>
         <span id="uploadWheelsCsvStatus"></span>
@@ -114,23 +117,42 @@
             <input type="hidden" name="id" />
             <input name="wheel_id" placeholder="Wheel ID (e.g., AAPL-W1)" required />
             <input name="ticker" placeholder="Ticker" required />
-            <select name="trade_type" required>
-                <option value="" disabled selected>Trade Type</option>
-                <option value="Sell Put">Sell Put</option>
-                <option value="Assignment">Assignment</option>
-                <option value="Sell Call">Sell Call</option>
-                <option value="Called Away">Called Away</option>
-            </select>
             <select name="trade_date" id="wheelExpiryDateSelect" required>
                 <option value="" disabled selected>Select Expiry Date</option>
                 <!-- Options will be populated dynamically -->
             </select>
-            <input name="strike_price" type="number" step="0.01" min="0" placeholder="Strike Price" />
-            <input name="premium_received" type="number" step="0.01" min="0" placeholder="Premium Received" />
-            <select name="status" required>
-                <option value="Active">Active</option>
-                <option value="Closed">Closed</option>
-            </select>
+            <input name="call_put" placeholder="Call/Put" />
+
+            <!-- Sell Put fields -->
+            <input name="sell_put_strike_price" type="number" step="0.01" min="0" placeholder="Sell Put Strike Price" />
+            <input name="sell_put_open_premium" type="number" step="0.01" min="0" placeholder="Sell Put Open Premium" />
+            <input name="sell_put_closed_premium" type="number" step="0.01" min="0"
+                placeholder="Sell Put Closed Premium" />
+            <input name="sell_put_status" placeholder="Sell Put Status" />
+            <input name="sell_put_quantity" type="number" min="0" placeholder="Sell Put Quantity" />
+
+            <!-- Assignment fields -->
+            <input name="assignment_strike_price" type="number" step="0.01" min="0"
+                placeholder="Assignment Strike Price" />
+            <input name="assignment_shares_quantity" type="number" min="0" placeholder="Assignment Shares Quantity" />
+            <input name="assignment_status" placeholder="Assignment Status" />
+
+            <!-- Sell Call fields -->
+            <input name="sell_call_strike_price" type="number" step="0.01" min="0"
+                placeholder="Sell Call Strike Price" />
+            <input name="sell_call_open_premium" type="number" step="0.01" min="0"
+                placeholder="Sell Call Open Premium" />
+            <input name="sell_call_closed_premium" type="number" step="0.01" min="0"
+                placeholder="Sell Call Closed Premium" />
+            <input name="sell_call_status" placeholder="Sell Call Status" />
+            <input name="sell_call_quantity" type="number" min="0" placeholder="Sell Call Quantity" />
+
+            <!-- Called Away fields -->
+            <input name="called_away_strike_price" type="number" step="0.01" min="0"
+                placeholder="Called Away Strike Price" />
+            <input name="called_away_shares_quantity" type="number" min="0" placeholder="Called Away Shares Quantity" />
+            <input name="called_away_status" placeholder="Called Away Status" />
+
             <button type="submit">Add / Update Wheel</button>
             <button type="button" id="cancelWheelEdit" style="display:none;">Cancel</button>
         </form>
@@ -140,11 +162,24 @@
                 <tr>
                     <th>Wheel ID</th>
                     <th>Ticker</th>
-                    <th>Trade Type</th>
                     <th>Trade Date</th>
-                    <th>Strike Price</th>
-                    <th>Premium Received</th>
-                    <th>Status</th>
+                    <th>Call/Put</th>
+                    <th>Sell Put Strike Price</th>
+                    <th>Sell Put Open Premium</th>
+                    <th>Sell Put Closed Premium</th>
+                    <th>Sell Put Status</th>
+                    <th>Sell Put Quantity</th>
+                    <th>Assignment Strike Price</th>
+                    <th>Assignment Shares Quantity</th>
+                    <th>Assignment Status</th>
+                    <th>Sell Call Strike Price</th>
+                    <th>Sell Call Open Premium</th>
+                    <th>Sell Call Closed Premium</th>
+                    <th>Sell Call Status</th>
+                    <th>Sell Call Quantity</th>
+                    <th>Called Away Strike Price</th>
+                    <th>Called Away Shares Quantity</th>
+                    <th>Called Away Status</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -452,16 +487,29 @@
             wheels.forEach(wheel => {
                 const tr = document.createElement("tr");
                 tr.innerHTML = `
-                    <td>${wheel.wheel_id}</td>
-                    <td>${wheel.ticker}</td>
-                    <td>${wheel.trade_type}</td>
+                    <td>${wheel.wheel_id ?? ""}</td>
+                    <td>${wheel.ticker ?? ""}</td>
                     <td>${wheel.trade_date ?? ""}</td>
-                    <td>${wheel.strike_price !== null && wheel.strike_price !== undefined ? wheel.strike_price.toFixed(2) : ""}</td>
-                    <td>${wheel.premium_received !== null && wheel.premium_received !== undefined ? wheel.premium_received.toFixed(2) : ""}</td>
-                    <td>${wheel.status}</td>
+                    <td>${wheel.call_put ?? ""}</td>
+                    <td>${wheel.sell_put_strike_price ?? ""}</td>
+                    <td>${wheel.sell_put_open_premium ?? ""}</td>
+                    <td>${wheel.sell_put_closed_premium ?? ""}</td>
+                    <td>${wheel.sell_put_status ?? ""}</td>
+                    <td>${wheel.sell_put_quantity ?? ""}</td>
+                    <td>${wheel.assignment_strike_price ?? ""}</td>
+                    <td>${wheel.assignment_shares_quantity ?? ""}</td>
+                    <td>${wheel.assignment_status ?? ""}</td>
+                    <td>${wheel.sell_call_strike_price ?? ""}</td>
+                    <td>${wheel.sell_call_open_premium ?? ""}</td>
+                    <td>${wheel.sell_call_closed_premium ?? ""}</td>
+                    <td>${wheel.sell_call_status ?? ""}</td>
+                    <td>${wheel.sell_call_quantity ?? ""}</td>
+                    <td>${wheel.called_away_strike_price ?? ""}</td>
+                    <td>${wheel.called_away_shares_quantity ?? ""}</td>
+                    <td>${wheel.called_away_status ?? ""}</td>
                     <td>
-                        <button onclick="startWheelEdit(${wheel.id})">Edit</button>
-                        <button onclick="deleteWheel(${wheel.id})">Delete</button>
+                        <button onclick="startWheelEdit('${wheel.id}')">Edit</button>
+                        <button onclick="deleteWheel('${wheel.id}')">Delete</button>
                     </td>
                 `;
                 wheelsTableBody.appendChild(tr);
@@ -533,12 +581,24 @@
             const data = {
                 wheel_id: wheelForm.wheel_id.value,
                 ticker: wheelForm.ticker.value.trim().toUpperCase(),
-                trade_type: wheelForm.trade_type.value,
                 trade_date: wheelForm.trade_date.value,
-                strike_price: wheelForm.strike_price.value ? parseFloat(wheelForm.strike_price.value) : null,
-                premium_received: wheelForm.premium_received.value ? parseFloat(wheelForm.premium_received.value) : null,
-                status: wheelForm.status.value,
-                expiry_date: wheelForm.expiry_date.value // <-- Add this line
+                call_put: wheelForm.call_put.value,
+                sell_put_strike_price: wheelForm.sell_put_strike_price.value ? parseFloat(wheelForm.sell_put_strike_price.value) : null,
+                sell_put_open_premium: wheelForm.sell_put_open_premium.value ? parseFloat(wheelForm.sell_put_open_premium.value) : null,
+                sell_put_closed_premium: wheelForm.sell_put_closed_premium.value ? parseFloat(wheelForm.sell_put_closed_premium.value) : null,
+                sell_put_status: wheelForm.sell_put_status.value,
+                sell_put_quantity: wheelForm.sell_put_quantity.value ? parseInt(wheelForm.sell_put_quantity.value) : null,
+                assignment_strike_price: wheelForm.assignment_strike_price.value ? parseFloat(wheelForm.assignment_strike_price.value) : null,
+                assignment_shares_quantity: wheelForm.assignment_shares_quantity.value ? parseInt(wheelForm.assignment_shares_quantity.value) : null,
+                assignment_status: wheelForm.assignment_status.value,
+                sell_call_strike_price: wheelForm.sell_call_strike_price.value ? parseFloat(wheelForm.sell_call_strike_price.value) : null,
+                sell_call_open_premium: wheelForm.sell_call_open_premium.value ? parseFloat(wheelForm.sell_call_open_premium.value) : null,
+                sell_call_closed_premium: wheelForm.sell_call_closed_premium.value ? parseFloat(wheelForm.sell_call_closed_premium.value) : null,
+                sell_call_status: wheelForm.sell_call_status.value,
+                sell_call_quantity: wheelForm.sell_call_quantity.value ? parseInt(wheelForm.sell_call_quantity.value) : null,
+                called_away_strike_price: wheelForm.called_away_strike_price.value ? parseFloat(wheelForm.called_away_strike_price.value) : null,
+                called_away_shares_quantity: wheelForm.called_away_shares_quantity.value ? parseInt(wheelForm.called_away_shares_quantity.value) : null,
+                called_away_status: wheelForm.called_away_status.value
             };
 
             try {
@@ -754,6 +814,97 @@
         // Update wheel expiry dates when ticker input changes or loses focus
         wheelTickerInput.addEventListener("blur", updateWheelExpiryDates);
         wheelTickerInput.addEventListener("change", updateWheelExpiryDates);
+
+        // --- EXPORT CSV HANDLERS ---
+
+        // Export Stocks
+        document.getElementById("exportStocksBtn").addEventListener("click", async function () {
+            const res = await fetch("/stocks/");
+            if (!res.ok) return alert("Failed to fetch stocks");
+            const stocks = await res.json();
+            if (!stocks.length) return alert("No stocks to export.");
+            const header = ["ticker", "shares", "cost_basis", "status", "entry_date"];
+            const rows = stocks.map(s =>
+                [s.ticker, s.shares, s.cost_basis, s.status, s.entry_date].join(",")
+            );
+            const csv = [header.join(","), ...rows].join("\n");
+            const blob = new Blob([csv], { type: "text/csv" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "stocks_export.csv";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+
+        // Export Options
+        document.getElementById("exportOptionsBtn").addEventListener("click", async function () {
+            const res = await fetch("/options/");
+            if (!res.ok) return alert("Failed to fetch options");
+            const options = await res.json();
+            if (!options.length) return alert("No options to export.");
+            const header = ["ticker", "option_type", "strike_price", "expiry_date", "contracts", "cost_basis", "status"];
+            const rows = options.map(o =>
+                [o.ticker, o.option_type, o.strike_price, o.expiry_date, o.contracts, o.cost_basis, o.status].join(",")
+            );
+            const csv = [header.join(","), ...rows].join("\n");
+            const blob = new Blob([csv], { type: "text/csv" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "options_export.csv";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+
+        // Export Wheels (all fields)
+        document.getElementById("exportWheelsBtn").addEventListener("click", async function () {
+            const res = await fetch("/wheels/");
+            if (!res.ok) return alert("Failed to fetch wheels");
+            const wheels = await res.json();
+            if (!wheels.length) return alert("No wheels to export.");
+
+            const header = [
+                "wheel_id",
+                "ticker",
+                "trade_date",
+                "call_put",
+                "sell_put_strike_price",
+                "sell_put_open_premium",
+                "sell_put_closed_premium",
+                "sell_put_status",
+                "sell_put_quantity",
+                "assignment_strike_price",
+                "assignment_shares_quantity",
+                "assignment_status",
+                "sell_call_strike_price",
+                "sell_call_open_premium",
+                "sell_call_closed_premium",
+                "sell_call_status",
+                "sell_call_quantity",
+                "called_away_strike_price",
+                "called_away_shares_quantity",
+                "called_away_status"
+            ];
+
+            const rows = wheels.map(w =>
+                header.map(field => w[field] !== undefined && w[field] !== null ? w[field] : "").join(",")
+            );
+            const csv = [header.join(","), ...rows].join("\n");
+            const blob = new Blob([csv], { type: "text/csv" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "wheels_export.csv";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
     </script>
 </body>
 

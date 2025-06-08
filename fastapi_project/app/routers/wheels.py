@@ -35,13 +35,13 @@ def delete_wheel(wheel_id: int, db: Session = Depends(get_db)):
 def download_wheels_csv_template():
     """Download a CSV template for wheel strategies."""
     csv_content = (
-        "wheel_id,ticker,trade_type,trade_date,strike_price,premium_received,status,call_put,"
+        "wheel_id,ticker,trade_date,call_put,"
         "sell_put_strike_price,sell_put_open_premium,sell_put_closed_premium,sell_put_status,sell_put_quantity,"
         "assignment_strike_price,assignment_shares_quantity,assignment_status,"
         "sell_call_strike_price,sell_call_open_premium,sell_call_closed_premium,sell_call_status,sell_call_quantity,"
         "called_away_strike_price,called_away_shares_quantity,called_away_status\n"
-        "AAPL-W1,AAPL,Sell Put,2024-07-19,150,2.50,Open,Put,150,2.50,,Open,1,,,,,,,,,,\n"
-        "MSFT-W1,MSFT,Sell Call,2024-08-16,320,3.10,Closed,Call,,,,,,320,1,Closed,320,3.10,3.00,Closed,1,320,100,Closed\n"
+        "AAPL-W1,AAPL,2024-07-19,Put,150,2.50,,Open,1,,,,,,,,,,\n"
+        "MSFT-W1,MSFT,2024-08-16,Call,,,,,,320,100,Closed,320,3.10,3.00,Closed,1,320,100,Closed\n"
     )
     return StreamingResponse(
         io.StringIO(csv_content),
@@ -61,11 +61,7 @@ async def upload_wheels_csv(file: UploadFile = File(...), db: Session = Depends(
             db_wheel = models.WheelStrategy(
                 wheel_id=row.get("wheel_id") or f"{row['ticker'].strip().upper()}-W",
                 ticker=row["ticker"].strip().upper(),
-                trade_type=row.get("trade_type", "Sell Put"),
                 trade_date=row.get("trade_date"),
-                strike_price=float(row["strike_price"]) if row.get("strike_price") else None,
-                premium_received=float(row["premium_received"]) if row.get("premium_received") else None,
-                status=row.get("status", "Active"),
                 call_put=row.get("call_put"),
                 sell_put_strike_price=float(row["sell_put_strike_price"]) if row.get("sell_put_strike_price") else None,
                 sell_put_open_premium=float(row["sell_put_open_premium"]) if row.get("sell_put_open_premium") else None,
