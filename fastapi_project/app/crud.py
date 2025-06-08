@@ -203,9 +203,6 @@ def get_wheels(db: Session):
     return db.query(models.WheelStrategy).all()
 
 def create_wheel(db: Session, wheel: schemas.WheelStrategyCreate):
-    """
-    Create and persist a new wheel strategy.
-    """
     db_wheel = models.WheelStrategy(**wheel.dict())
     db.add(db_wheel)
     db.commit()
@@ -213,9 +210,6 @@ def create_wheel(db: Session, wheel: schemas.WheelStrategyCreate):
     return db_wheel
 
 def update_wheel(db: Session, wheel_id: int, wheel: schemas.WheelStrategyCreate):
-    """
-    Update an existing wheel strategy.
-    """
     db_wheel = db.query(models.WheelStrategy).filter(models.WheelStrategy.id == wheel_id).first()
     if not db_wheel:
         raise HTTPException(status_code=404, detail="Wheel strategy not found")

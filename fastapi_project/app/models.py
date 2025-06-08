@@ -63,15 +63,36 @@ class WheelStrategy(Base):
     """
     __tablename__ = "wheel_strategies"
 
-    id = Column(Integer, primary_key=True, index=True)      # Unique ID for each wheel row
-    wheel_id = Column(String, index=True)                   # Unique identifier for the wheel (e.g., "AAPL-W1")
-    ticker = Column(String, index=True)                     # Underlying stock symbol
-    trade_type = Column(String)                             # "Sell Put", "Assignment", "Sell Call", "Called Away"
-    trade_date = Column(String)                             # Date of the trade (as string)
-    strike_price = Column(Float, nullable=True)             # Strike price for the trade (optional)
-    premium_received = Column(Float, nullable=True)         # Premium received for the trade (optional)
-    status = Column(String, default="Active")               # "Active" or "Closed"
-    call_put = Column(String, nullable=True)                # "Call" or "Put" (optional, for clarity)
+    id = Column(Integer, primary_key=True, index=True)
+    wheel_id = Column(String, index=True)
+    ticker = Column(String, index=True)
+    trade_type = Column(String)
+    trade_date = Column(String)
+    strike_price = Column(Float, nullable=True)
+    premium_received = Column(Float, nullable=True)
+    status = Column(String, default="Active")
+    call_put = Column(String, nullable=True)
+
+    # New fields for full wheel lifecycle
+    sell_put_strike_price = Column(Float, nullable=True)
+    sell_put_open_premium = Column(Float, nullable=True)
+    sell_put_closed_premium = Column(Float, nullable=True)
+    sell_put_status = Column(String, nullable=True)
+    sell_put_quantity = Column(Integer, nullable=True)
+
+    assignment_strike_price = Column(Float, nullable=True)
+    assignment_shares_quantity = Column(Integer, nullable=True)
+    assignment_status = Column(String, nullable=True)
+
+    sell_call_strike_price = Column(Float, nullable=True)
+    sell_call_open_premium = Column(Float, nullable=True)
+    sell_call_closed_premium = Column(Float, nullable=True)
+    sell_call_status = Column(String, nullable=True)
+    sell_call_quantity = Column(Integer, nullable=True)
+
+    called_away_strike_price = Column(Float, nullable=True)
+    called_away_shares_quantity = Column(Integer, nullable=True)
+    called_away_status = Column(String, nullable=True)
 
 class Price(Base):
     """
