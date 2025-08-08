@@ -138,6 +138,14 @@ class UserLogin(BaseModel):
     username: str
     password: str
 
+class UserUpdate(BaseModel):
+    """Schema for admin updating user details; all fields optional."""
+    username: str | None = Field(None, description="New username")
+    email: EmailStr | None = Field(None, description="New email")
+    password: str | None = Field(None, min_length=6, description="New password (plain)")
+    is_active: bool | None = Field(None, description="Activate/deactivate user")
+    roles: str | None = Field(None, description="Comma-separated roles, e.g. 'user,admin'")
+
 # --- JWT Token SCHEMAS ---
 
 class Token(BaseModel):

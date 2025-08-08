@@ -46,13 +46,14 @@ def healthz():
 Base.metadata.create_all(bind=engine)
 
 # --- Routers ---
-from app.routers import stocks, options, wheels, tickers, auth  # noqa: E402
+from app.routers import stocks, options, wheels, tickers, auth, users  # noqa: E402
 
 app.include_router(auth.router)
 app.include_router(stocks.router)
 app.include_router(options.router)
 app.include_router(wheels.router)
 app.include_router(tickers.router)
+app.include_router(users.router)
 
 
 # --- Expiry helper endpoints for local UI compatibility ---

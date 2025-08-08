@@ -294,3 +294,41 @@ def user_has_role(user: models.User, role: str) -> bool:
     if not user or not user.roles:
         return False
     return role in [r.strip() for r in user.roles.split(",")]
+
+# --- USER ADMIN FUNCTIONS ---
+
+def list_users(db: Session):
+    return db.query(models.User).all()
+
+def update_user(db: Session, user_id: int, update: schemas.UserUpdate):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Uniqueness checks for username/email if changing
+    if update.username and update.username != user.username:
+        if get_user_by_username(db, update.username):
+            raise HTTPException(status_code=400, detail="Username already in use")
+        user.username = update.username
+    if update.email and update.email != user.email:
+        if get_user_by_email(db, update.email):
+            raise HTTPException(status_code=400, detail="Email already in use")
+        user.email = update.email
+    if update.password:
+        user.hashed_password = hash_password(update.password)
+    if update.is_active is not None:
+        user.is_active = update.is_active
+    if update.roles is not None:
+        user.roles = update.roles
+
+    db.commit()
+    db.refresh(user)
+    return user
+
+def delete_user(db: Session, user_id: int) -> bool:
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        return False
+    db.delete(user)
+    db.commit()
+    return True
