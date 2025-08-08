@@ -8,6 +8,7 @@ for use in other parts of the application.
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
+from typing import Generator
 
 # --- DATABASE CONFIGURATION ---
 
@@ -30,3 +31,15 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 # Base class for all ORM models.
 # All your models should inherit from Base.
 Base = declarative_base()
+
+
+def get_db() -> Generator:
+    """
+    FastAPI dependency that yields a SQLAlchemy session and ensures it's closed.
+    Usage: `db: Session = Depends(get_db)`
+    """
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

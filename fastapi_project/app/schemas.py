@@ -25,7 +25,7 @@ class StockRead(StockBase):
     id: int
 
     class Config:
-        orm_mode = True  # Allows reading from ORM objects directly
+        from_attributes = True  # Pydantic v2 compatible ORM mode
 
 # --- TICKER SCHEMAS ---
 # These classes define the structure of data for ticker symbols (market data lookups).
@@ -50,7 +50,7 @@ class TickerRead(TickerBase):
     id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # --- OPTION SCHEMAS ---
 # These classes define the structure of data for options contracts.
@@ -75,7 +75,7 @@ class OptionRead(OptionBase):
     id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # --- WHEEL STRATEGY SCHEMAS ---
 # These classes define the structure of data for wheel strategy trades.
@@ -115,7 +115,7 @@ class WheelStrategyRead(WheelStrategyBase):
     id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # --- USER SCHEMAS ---
 
@@ -132,7 +132,7 @@ class UserRead(UserBase):
     roles: str
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class UserLogin(BaseModel):
     username: str

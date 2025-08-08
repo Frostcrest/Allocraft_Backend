@@ -1,10 +1,11 @@
 from datetime import datetime
+import os
 import requests
 import yfinance as yf
 from twelvedata import TDClient
 
-TD_API_KEY = "59076e2930e5489796d3f74ea7082959"
-td = TDClient(apikey=TD_API_KEY)
+TD_API_KEY = os.getenv("TWELVE_DATA_API_KEY", "")
+td = TDClient(apikey=TD_API_KEY) if TD_API_KEY else None
 
 def fetch_latest_price(ticker: str) -> tuple[float, datetime]:
     """
@@ -12,8 +13,8 @@ def fetch_latest_price(ticker: str) -> tuple[float, datetime]:
     Returns a tuple: (price, current UTC datetime).
     If the API fails, price will be 0.
     """
-    API_KEY = "59076e2930e5489796d3f74ea7082959"
-    url = f"https://api.twelvedata.com/price?symbol={ticker}&apikey={API_KEY}"
+    api_key = os.getenv("TWELVE_DATA_API_KEY", "")
+    url = f"https://api.twelvedata.com/price?symbol={ticker}&apikey={api_key}"
     response = requests.get(url)
     data = response.json()
     price = float(data.get("price", 0))
@@ -61,6 +62,8 @@ def fetch_ticker_info(symbol: str) -> dict:
     Returns a dictionary with ticker information.
     """
     try:
+        if not td:
+            return {}
         data = td.quote(symbol=symbol).as_json()
         if not data or "code" in data:
             return {}

@@ -40,6 +40,23 @@ def get_tickers(db: Session, skip: int = 0, limit: int = 100):
     """
     return db.query(models.Ticker).offset(skip).limit(limit).all()
 
+def get_ticker_by_id(db: Session, ticker_id: int):
+    """
+    Retrieve a ticker by its primary key ID.
+    """
+    return db.query(models.Ticker).filter(models.Ticker.id == ticker_id).first()
+
+def delete_ticker(db: Session, ticker_id: int):
+    """
+    Delete a ticker by its ID. Returns True if deleted.
+    """
+    db_ticker = db.query(models.Ticker).filter(models.Ticker.id == ticker_id).first()
+    if not db_ticker:
+        return False
+    db.delete(db_ticker)
+    db.commit()
+    return True
+
 def create_price(db: Session, price: float, ticker_id: int, timestamp: datetime = None):
     """
     Create and persist a new price for a ticker.

@@ -47,21 +47,26 @@ py -m venv venv
 venv\Scripts\activate
 ```
 
-### 4. Install Dependencies
+### 4. Configure environment (optional, recommended)
 
-Install all required Python packages, including `email-validator` and `passlib` (needed for user registration, email validation, and password hashing):
+Copy `.env.template` to `.env` and set values. For local dev, defaults are fine:
 
-```sh
-pip install fastapi uvicorn sqlalchemy pydantic twelvedata yfinance python-multipart email-validator passlib[bcrypt]
+```
+FRONTEND_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+SECRET_KEY=change-me-in-dev
+ACCESS_TOKEN_EXPIRE_MINUTES=60
+TWELVE_DATA_API_KEY=
 ```
 
-If you see an error about `email-validator` missing, you can also run:
+### 5. Install Dependencies
 
-```sh
-pip install "pydantic[email]"
+Install required Python packages (includes extras used by the app):
+
+```powershell
+pip install -r requirements.txt
 ```
 
-### 5. Run the Backend Server
+### 6. Run the Backend Server
 
 ```sh
 cd .\fastapi_project\
@@ -70,11 +75,11 @@ uvicorn app.main:app --reload
 
 - The API and web UI will be available at: [http://127.0.0.1:8000/](http://127.0.0.1:8000/)
 
-### 6. Access the Web UI
+### 7. Access the Web UI
 
 - Open [http://127.0.0.1:8000/](http://127.0.0.1:8000/) in your browser to use the portfolio manager.
 
-### 7. API Documentation
+### 8. API Documentation
 
 - Interactive docs: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 - Alternative docs: [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
