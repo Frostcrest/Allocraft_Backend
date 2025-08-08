@@ -70,7 +70,7 @@ pip install -r requirements.txt
 
 ```sh
 cd .\fastapi_project\
-uvicorn app.main:app --reload
+python -m uvicorn app.main:app --reload
 ```
 
 - The API and web UI will be available at: [http://127.0.0.1:8000/](http://127.0.0.1:8000/)
