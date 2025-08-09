@@ -121,6 +121,151 @@ def seed_wheels(db: Session) -> int:
     return len(wheels)
 
 
+def seed_wheel_cycle_rigetti(db: Session) -> int:
+    """Seed a WheelCycle and WheelEvents for Rigetti Computing Inc (RGTI).
+    Data comes from the attached sheet snapshot (July–Aug 2025).
+    Idempotent: only creates when cycle_key not present.
+    """
+    cycle_key = "RGTI-1"
+    existing = db.query(models.WheelCycle).filter(models.WheelCycle.cycle_key == cycle_key).first()
+    if existing:
+        cycle = existing
+    else:
+        # Create cycle
+        cycle = models.WheelCycle(
+            cycle_key=cycle_key,
+            ticker="RGTI",
+            started_at="2025-07-09",
+            status="Open",
+            notes="Seeded from Rigetti sheet (calls/puts + stock buys)",
+        )
+        db.add(cycle)
+        db.flush()  # get cycle.id
+
+    # If this cycle already has events, skip to keep idempotency
+    if db.query(models.WheelEvent).filter(models.WheelEvent.cycle_id == cycle.id).count() > 0:
+        return 0
+
+    created = 0
+
+    def add_evt(**kwargs):
+        nonlocal created
+        evt = models.WheelEvent(cycle_id=cycle.id, **kwargs)
+        db.add(evt)
+        db.flush()
+        created += 1
+        return evt
+
+    # Stock buys (right table)
+    add_evt(event_type="BUY_SHARES", trade_date="2025-07-09", quantity_shares=100, price=12.94, fees=0.0)
+    add_evt(event_type="BUY_SHARES", trade_date="2025-07-31", quantity_shares=100, price=14.51, fees=0.0)
+    add_evt(event_type="BUY_SHARES", trade_date="2025-08-08", quantity_shares=29, price=14.74, fees=0.0)
+
+    # Put sold then closed
+    put_open = add_evt(event_type="SELL_PUT_OPEN", trade_date="2025-07-09", contracts=1, strike=12.00, premium=1.00, fees=0.0)
+    add_evt(event_type="SELL_PUT_CLOSE", trade_date="2025-07-16", contracts=1, premium=0.46, fees=0.0, link_event_id=put_open.id)
+
+    # Calls sold and closed
+    c1_open = add_evt(event_type="SELL_CALL_OPEN", trade_date="2025-07-11", contracts=1, strike=13.00, premium=0.38, fees=0.0)
+    add_evt(event_type="SELL_CALL_CLOSE", trade_date="2025-07-16", contracts=1, premium=2.57, fees=0.0, link_event_id=c1_open.id)
+
+    c2_open = add_evt(event_type="SELL_CALL_OPEN", trade_date="2025-07-16", contracts=1, strike=16.00, premium=0.80, fees=0.0)
+    add_evt(event_type="SELL_CALL_CLOSE", trade_date="2025-07-16", contracts=1, premium=0.97, fees=0.0, link_event_id=c2_open.id)
+
+    c3_open = add_evt(event_type="SELL_CALL_OPEN", trade_date="2025-07-16", contracts=1, strike=16.00, premium=1.04, fees=0.0)
+    add_evt(event_type="SELL_CALL_CLOSE", trade_date="2025-07-25", contracts=1, premium=0.05, fees=0.0, link_event_id=c3_open.id)
+
+    c4_open = add_evt(event_type="SELL_CALL_OPEN", trade_date="2025-07-28", contracts=1, strike=16.00, premium=0.60, fees=0.0)
+    add_evt(event_type="SELL_CALL_CLOSE", trade_date="2025-07-29", contracts=1, premium=0.30, fees=0.0, link_event_id=c4_open.id)
+
+    c5_open = add_evt(event_type="SELL_CALL_OPEN", trade_date="2025-07-30", contracts=1, strike=15.00, premium=0.24, fees=0.0)
+    add_evt(event_type="SELL_CALL_CLOSE", trade_date="2025-08-01", contracts=1, premium=0.02, fees=0.0, link_event_id=c5_open.id)
+
+    # Open calls (still open as of 08/01)
+    add_evt(event_type="SELL_CALL_OPEN", trade_date="2025-08-01", contracts=1, strike=14.00, premium=0.63, fees=0.0)
+    add_evt(event_type="SELL_CALL_OPEN", trade_date="2025-08-01", contracts=1, strike=14.50, premium=0.64, fees=0.0)
+
+    db.commit()
+    return created
+
+
+def seed_wheel_cycle_bigbear(db: Session) -> int:
+    """Seed a WheelCycle and WheelEvents for BigBear.ai Holdings Inc (BBAI).
+    Data captured from the attached sheet (July–Aug 2025).
+    Idempotent: only creates when cycle_key not present or has no events.
+    """
+    cycle_key = "BBAI-1"
+    existing = db.query(models.WheelCycle).filter(models.WheelCycle.cycle_key == cycle_key).first()
+    if existing:
+        cycle = existing
+    else:
+        cycle = models.WheelCycle(
+            cycle_key=cycle_key,
+            ticker="BBAI",
+            started_at="2025-07-09",
+            status="Open",
+            notes="Seeded from BigBear.ai sheet (calls/puts + stock buys)",
+        )
+        db.add(cycle)
+        db.flush()
+
+    if db.query(models.WheelEvent).filter(models.WheelEvent.cycle_id == cycle.id).count() > 0:
+        return 0
+
+    created = 0
+
+    def add_evt(**kwargs):
+        nonlocal created
+        evt = models.WheelEvent(cycle_id=cycle.id, **kwargs)
+        db.add(evt)
+        db.flush()
+        created += 1
+        return evt
+
+    # Stock buys (right table)
+    add_evt(event_type="BUY_SHARES", trade_date="2025-07-09", quantity_shares=100, price=7.19, fees=0.0)
+    add_evt(event_type="BUY_SHARES", trade_date="2025-07-31", quantity_shares=100, price=6.65, fees=0.0)
+    add_evt(event_type="BUY_SHARES", trade_date="2025-07-31", quantity_shares=100, price=6.41, fees=0.0)
+    add_evt(event_type="BUY_SHARES", trade_date="2025-08-08", quantity_shares=13, price=6.51, fees=0.0)
+
+    # 07/09/2025 Put sell -> closed 07/16
+    p1_open = add_evt(event_type="SELL_PUT_OPEN", trade_date="2025-07-09", contracts=1, strike=6.00, premium=0.75, fees=0.0)
+    add_evt(event_type="SELL_PUT_CLOSE", trade_date="2025-07-16", contracts=1, premium=0.55, fees=0.0, link_event_id=p1_open.id)
+
+    # 07/11/2025 Call sell -> closed same day
+    c1_open = add_evt(event_type="SELL_CALL_OPEN", trade_date="2025-07-11", contracts=1, strike=7.50, premium=0.40, fees=0.0)
+    add_evt(event_type="SELL_CALL_CLOSE", trade_date="2025-07-11", contracts=1, premium=0.20, fees=0.0, link_event_id=c1_open.id)
+
+    # 07/11/2025 Put sell -> closed 07/16
+    p2_open = add_evt(event_type="SELL_PUT_OPEN", trade_date="2025-07-11", contracts=1, strike=6.50, premium=1.10, fees=0.0)
+    add_evt(event_type="SELL_PUT_CLOSE", trade_date="2025-07-16", contracts=1, premium=0.90, fees=0.0, link_event_id=p2_open.id)
+
+    # 07/11/2025 Call sell -> rolled/closed 07/16 at equal premium
+    c2_open = add_evt(event_type="SELL_CALL_OPEN", trade_date="2025-07-11", contracts=1, strike=7.00, premium=0.30, fees=0.0)
+    add_evt(event_type="SELL_CALL_CLOSE", trade_date="2025-07-16", contracts=1, premium=0.30, fees=0.0, link_event_id=c2_open.id)
+
+    # 07/16/2025 Call sell -> closed 07/17 at loss
+    c3_open = add_evt(event_type="SELL_CALL_OPEN", trade_date="2025-07-16", contracts=1, strike=7.50, premium=0.40, fees=0.0)
+    add_evt(event_type="SELL_CALL_CLOSE", trade_date="2025-07-17", contracts=1, premium=0.82, fees=0.0, link_event_id=c3_open.id)
+
+    # 07/17/2025 Call sell -> expired 07/25 (model as close at $0.10)
+    c4_open = add_evt(event_type="SELL_CALL_OPEN", trade_date="2025-07-17", contracts=1, strike=8.00, premium=0.56, fees=0.0)
+    add_evt(event_type="SELL_CALL_CLOSE", trade_date="2025-07-25", contracts=1, premium=0.10, fees=0.0, link_event_id=c4_open.id)
+
+    # 08/01/2025 Put sell -> closed 08/04
+    p3_open = add_evt(event_type="SELL_PUT_OPEN", trade_date="2025-08-01", contracts=1, strike=6.00, premium=0.55, fees=0.0)
+    add_evt(event_type="SELL_PUT_CLOSE", trade_date="2025-08-04", contracts=1, premium=0.23, fees=0.0, link_event_id=p3_open.id)
+
+    # 08/01/2025 Call sell 3x -> rolled/closed 08/08
+    c5_open = add_evt(event_type="SELL_CALL_OPEN", trade_date="2025-08-01", contracts=3, strike=6.50, premium=0.30, fees=0.0)
+    add_evt(event_type="SELL_CALL_CLOSE", trade_date="2025-08-08", contracts=3, premium=0.57, fees=0.0, link_event_id=c5_open.id)
+
+    # 08/08/2025 Call sell 3x -> still open
+    add_evt(event_type="SELL_CALL_OPEN", trade_date="2025-08-08", contracts=3, strike=7.50, premium=0.63, fees=0.0)
+
+    db.commit()
+    return created
+
 def main() -> None:
     # Ensure tables exist
     Base.metadata.create_all(bind=engine)
@@ -137,10 +282,13 @@ def main() -> None:
             )
             db.add(admin)
             db.commit()
+
         s_count = seed_stocks(db)
         o_count = seed_options(db)
         w_count = seed_wheels(db)
-        print(f"Seed complete: stocks={s_count}, options={o_count}, wheels={w_count}")
+        r_count = seed_wheel_cycle_rigetti(db)
+        b_count = seed_wheel_cycle_bigbear(db)
+        print(f"Seed complete: stocks={s_count}, options={o_count}, wheels={w_count}, rigetti_events={r_count}, bbai_events={b_count}")
     finally:
         db.close()
 
