@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from app import schemas, crud, models
 from app.database import get_db
@@ -147,3 +148,123 @@ def delete_wheel_event(event_id: int, db: Session = Depends(get_db)):
 @router.get("/wheel_metrics/{cycle_id}", response_model=schemas.WheelMetricsRead)
 def get_wheel_metrics(cycle_id: int, db: Session = Depends(get_db)):
     return crud.calculate_wheel_metrics(db, cycle_id)
+
+
+# --- Lot endpoints ---
+@router.get("/cycles/{cycle_id}/lots", response_model=list[schemas.LotRead])
+def list_cycle_lots(cycle_id: int, status: str | None = None, covered: bool | None = None, ticker: str | None = None, db: Session = Depends(get_db)):
+    return crud.list_lots(db, cycle_id=cycle_id, status=status, covered=covered, ticker=ticker)
+
+
+@router.get("/lots/{lot_id}", response_model=schemas.LotRead)
+def get_lot(lot_id: int, db: Session = Depends(get_db)):
+    lot = crud.get_lot(db, lot_id)
+    if not lot:
+        raise HTTPException(status_code=404, detail="Lot not found")
+    return lot
+
+
+@router.patch("/lots/{lot_id}", response_model=schemas.LotRead)
+def patch_lot(lot_id: int, payload: schemas.LotUpdate, db: Session = Depends(get_db)):
+    updated = crud.update_lot(db, lot_id, schemas.LotBase(**{**(crud.get_lot(db, lot_id).__dict__ if crud.get_lot(db, lot_id) else {}), **payload.dict(exclude_unset=True)}))
+    if not updated:
+        raise HTTPException(status_code=404, detail="Lot not found")
+    return updated
+
+
+@router.get("/lots/{lot_id}/metrics", response_model=schemas.LotMetricsRead)
+def get_lot_metrics(lot_id: int, db: Session = Depends(get_db)):
+    return crud.refresh_lot_metrics(db, lot_id)
+
+
+@router.post("/lots/rebuild")
+def rebuild_lots(cycle_id: int, db: Session = Depends(get_db)):
+    lots = crud.rebuild_lots_for_cycle(db, cycle_id)
+    return {"created": len(lots)}
+
+
+class BindCallPayload(BaseModel):
+    option_event_id: int
+
+
+@router.post("/lots/{lot_id}/bind-call")
+def bind_call(lot_id: int, payload: BindCallPayload, db: Session = Depends(get_db)):
+    # Link an option SELL_CALL_OPEN event to a lot and mark covered
+    lot = crud.get_lot(db, lot_id)
+    if not lot:
+        raise HTTPException(status_code=404, detail="Lot not found")
+    evt = crud.get_wheel_event(db, payload.option_event_id)
+    if not evt or evt.event_type != "SELL_CALL_OPEN":
+        raise HTTPException(status_code=400, detail="Invalid option event to bind")
+    crud.create_lot_link(db, schemas.LotLinkCreate(lot_id=lot_id, linked_object_type="WHEEL_EVENT", linked_object_id=evt.id, role="CALL_OPEN"))
+    lot.status = "OPEN_COVERED"
+    db.commit()
+    crud.refresh_lot_metrics(db, lot_id)
+    return {"detail": "Bound"}
+
+
+@router.post("/lots/{lot_id}/unbind-call")
+def unbind_call(lot_id: int, db: Session = Depends(get_db)):
+    lot = crud.get_lot(db, lot_id)
+    if not lot:
+        raise HTTPException(status_code=404, detail="Lot not found")
+    # delete call links
+    links = crud.list_lot_links(db, lot_id)
+    for l in links:
+        if l.role in ("CALL_OPEN", "CALL_CLOSE"):
+            crud.delete_lot_link(db, l.id)
+    lot.status = "OPEN_UNCOVERED"
+    db.commit()
+    crud.refresh_lot_metrics(db, lot_id)
+    return {"detail": "Unbound"}
+
+
+@router.post("/lots/{lot_id}/bind-call-close")
+def bind_call_close(lot_id: int, payload: BindCallPayload, db: Session = Depends(get_db)):
+    lot = crud.get_lot(db, lot_id)
+    if not lot:
+        raise HTTPException(status_code=404, detail="Lot not found")
+    evt = crud.get_wheel_event(db, payload.option_event_id)
+    if not evt or evt.event_type != "SELL_CALL_CLOSE":
+        raise HTTPException(status_code=400, detail="Invalid close event to bind")
+    crud.create_lot_link(db, schemas.LotLinkCreate(lot_id=lot_id, linked_object_type="WHEEL_EVENT", linked_object_id=evt.id, role="CALL_CLOSE"))
+    # closing coverage makes it uncovered again unless already called away
+    if lot.status == "OPEN_COVERED":
+        lot.status = "OPEN_UNCOVERED"
+        db.commit()
+    crud.refresh_lot_metrics(db, lot_id)
+    return {"detail": "Bound close"}
+
+
+@router.get("/lots/{lot_id}/links")
+def get_lot_links(lot_id: int, db: Session = Depends(get_db)):
+    links = crud.list_lot_links(db, lot_id)
+    event_ids = [l.linked_object_id for l in links if l.linked_object_type == "WHEEL_EVENT"]
+    events = []
+    if event_ids:
+        events = (
+            db.query(models.WheelEvent)
+            .filter(models.WheelEvent.id.in_(event_ids))
+            .order_by(models.WheelEvent.trade_date.asc(), models.WheelEvent.id.asc())
+            .all()
+        )
+    # Pydantic conversion
+    return {
+        "links": [schemas.LotLinkRead(id=l.id, lot_id=l.lot_id, linked_object_type=l.linked_object_type, linked_object_id=l.linked_object_id, role=l.role) for l in links],
+        "events": [
+            schemas.WheelEventRead(
+                id=e.id,
+                cycle_id=e.cycle_id,
+                event_type=e.event_type,
+                trade_date=e.trade_date,
+                quantity_shares=e.quantity_shares,
+                contracts=e.contracts,
+                price=e.price,
+                strike=e.strike,
+                premium=e.premium,
+                fees=e.fees,
+                link_event_id=e.link_event_id,
+                notes=e.notes,
+            ) for e in events
+        ]
+    }

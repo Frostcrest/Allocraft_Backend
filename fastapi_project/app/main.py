@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from app.database import Base, engine
+# Import models before calling create_all to ensure all tables are registered
+from app import models  # noqa: F401
 import os
 from dotenv import load_dotenv
 from datetime import datetime
