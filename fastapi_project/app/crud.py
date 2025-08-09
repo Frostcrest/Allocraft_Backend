@@ -332,3 +332,139 @@ def delete_user(db: Session, user_id: int) -> bool:
     db.delete(user)
     db.commit()
     return True
+
+# --- EVENT-BASED WHEEL CRUD & METRICS ---
+
+def list_wheel_cycles(db: Session):
+    return db.query(models.WheelCycle).all()
+
+def get_wheel_cycle(db: Session, cycle_id: int):
+    return db.query(models.WheelCycle).filter(models.WheelCycle.id == cycle_id).first()
+
+def create_wheel_cycle(db: Session, payload: schemas.WheelCycleCreate):
+    cycle = models.WheelCycle(**payload.dict())
+    db.add(cycle)
+    db.commit()
+    db.refresh(cycle)
+    return cycle
+
+def update_wheel_cycle(db: Session, cycle_id: int, payload: schemas.WheelCycleCreate):
+    cycle = get_wheel_cycle(db, cycle_id)
+    if not cycle:
+        raise HTTPException(status_code=404, detail="Wheel cycle not found")
+    for k, v in payload.dict().items():
+        setattr(cycle, k, v)
+    db.commit()
+    db.refresh(cycle)
+    return cycle
+
+def delete_wheel_cycle(db: Session, cycle_id: int) -> bool:
+    cycle = get_wheel_cycle(db, cycle_id)
+    if not cycle:
+        return False
+    # Also delete events
+    db.query(models.WheelEvent).filter(models.WheelEvent.cycle_id == cycle_id).delete()
+    db.delete(cycle)
+    db.commit()
+    return True
+
+def list_wheel_events(db: Session, cycle_id: int | None = None):
+    q = db.query(models.WheelEvent)
+    if cycle_id is not None:
+        q = q.filter(models.WheelEvent.cycle_id == cycle_id)
+    return q.order_by(models.WheelEvent.trade_date.asc(), models.WheelEvent.id.asc()).all()
+
+def get_wheel_event(db: Session, event_id: int):
+    return db.query(models.WheelEvent).filter(models.WheelEvent.id == event_id).first()
+
+def create_wheel_event(db: Session, payload: schemas.WheelEventCreate):
+    # Validate cycle exists
+    cycle = get_wheel_cycle(db, payload.cycle_id)
+    if not cycle:
+        raise HTTPException(status_code=404, detail="Wheel cycle not found")
+    evt = models.WheelEvent(**payload.dict())
+    db.add(evt)
+    db.commit()
+    db.refresh(evt)
+    return evt
+
+def update_wheel_event(db: Session, event_id: int, payload: schemas.WheelEventCreate):
+    evt = get_wheel_event(db, event_id)
+    if not evt:
+        raise HTTPException(status_code=404, detail="Wheel event not found")
+    for k, v in payload.dict().items():
+        setattr(evt, k, v)
+    db.commit()
+    db.refresh(evt)
+    return evt
+
+def delete_wheel_event(db: Session, event_id: int) -> bool:
+    evt = get_wheel_event(db, event_id)
+    if not evt:
+        return False
+    db.delete(evt)
+    db.commit()
+    return True
+
+
+def calculate_wheel_metrics(db: Session, cycle_id: int) -> schemas.WheelMetricsRead:
+    cycle = get_wheel_cycle(db, cycle_id)
+    if not cycle:
+        raise HTTPException(status_code=404, detail="Wheel cycle not found")
+    events = list_wheel_events(db, cycle_id)
+
+    shares_owned = 0.0
+    total_cost = 0.0  # dollars invested in shares (buys positive, sells reduce)
+    net_options_cashflow = 0.0  # premiums received minus paid, minus fees
+    realized_stock_pl = 0.0  # realized P/L from selling shares and called away
+
+    for e in events:
+        qty = e.quantity_shares or 0
+        contracts = e.contracts or 0
+        fees = e.fees or 0
+        if e.event_type == "BUY_SHARES":
+            # buying increases shares and increases total_cost
+            shares_owned += qty
+            total_cost += (e.price or 0) * qty + fees
+        elif e.event_type == "SELL_SHARES":
+            # selling decreases shares, realize P/L relative to average cost
+            if qty > 0 and shares_owned > 0:
+                avg_cost = (total_cost / shares_owned) if shares_owned else 0.0
+                realized_stock_pl += ((e.price or 0) - avg_cost) * qty - fees
+                shares_owned -= qty
+                total_cost -= avg_cost * qty
+        elif e.event_type == "ASSIGNMENT":
+            # assignment increases shares at strike
+            shares_owned += qty
+            total_cost += (e.strike or 0) * qty + fees
+        elif e.event_type == "CALLED_AWAY":
+            # called away sells shares at strike
+            if qty > 0 and shares_owned > 0:
+                avg_cost = (total_cost / shares_owned) if shares_owned else 0.0
+                realized_stock_pl += ((e.strike or 0) - avg_cost) * qty - fees
+                shares_owned -= qty
+                total_cost -= avg_cost * qty
+        elif e.event_type == "SELL_PUT_OPEN":
+            # receive premium
+            net_options_cashflow += (e.premium or 0) * contracts * 100 - fees
+        elif e.event_type == "SELL_PUT_CLOSE":
+            # pay to close (negative cashflow)
+            net_options_cashflow -= (e.premium or 0) * contracts * 100 + fees
+        elif e.event_type == "SELL_CALL_OPEN":
+            net_options_cashflow += (e.premium or 0) * contracts * 100 - fees
+        elif e.event_type == "SELL_CALL_CLOSE":
+            net_options_cashflow -= (e.premium or 0) * contracts * 100 + fees
+
+    average_cost = (total_cost / shares_owned) if shares_owned else 0.0
+    total_realized_pl = realized_stock_pl + net_options_cashflow
+
+    return schemas.WheelMetricsRead(
+        cycle_id=cycle_id,
+        ticker=cycle.ticker,
+        shares_owned=round(shares_owned, 6),
+        average_cost_basis=round(average_cost, 6),
+        total_cost_remaining=round(total_cost, 2),
+        net_options_cashflow=round(net_options_cashflow, 2),
+        realized_stock_pl=round(realized_stock_pl, 2),
+        total_realized_pl=round(total_realized_pl, 2),
+    )
