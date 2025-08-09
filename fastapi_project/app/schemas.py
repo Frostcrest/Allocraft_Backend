@@ -179,6 +179,8 @@ class WheelMetricsRead(BaseModel):
     net_options_cashflow: float
     realized_stock_pl: float
     total_realized_pl: float
+    current_price: float | None = None
+    unrealized_pl: float
 
 # --- USER SCHEMAS ---
 

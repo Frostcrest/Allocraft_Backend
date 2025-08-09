@@ -458,6 +458,26 @@ def calculate_wheel_metrics(db: Session, cycle_id: int) -> schemas.WheelMetricsR
     average_cost = (total_cost / shares_owned) if shares_owned else 0.0
     total_realized_pl = realized_stock_pl + net_options_cashflow
 
+    # Try to get current price: prefer yfinance, else last stored price or None
+    current_price = None
+    try:
+        p = fetch_yf_price(cycle.ticker)
+        if p is not None:
+            current_price = float(p)
+    except Exception:
+        current_price = None
+    if current_price is None:
+        try:
+            t = get_ticker_by_symbol(db, cycle.ticker)
+            if t and t.last_price is not None:
+                current_price = float(t.last_price)
+        except Exception:
+            pass
+
+    unrealized_pl = 0.0
+    if current_price is not None and shares_owned:
+        unrealized_pl = (current_price - average_cost) * shares_owned
+
     return schemas.WheelMetricsRead(
         cycle_id=cycle_id,
         ticker=cycle.ticker,
@@ -467,4 +487,6 @@ def calculate_wheel_metrics(db: Session, cycle_id: int) -> schemas.WheelMetricsR
         net_options_cashflow=round(net_options_cashflow, 2),
         realized_stock_pl=round(realized_stock_pl, 2),
         total_realized_pl=round(total_realized_pl, 2),
+        current_price=current_price if current_price is None else round(current_price, 4),
+        unrealized_pl=round(unrealized_pl, 2),
     )
