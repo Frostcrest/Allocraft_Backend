@@ -490,3 +490,278 @@ def calculate_wheel_metrics(db: Session, cycle_id: int) -> schemas.WheelMetricsR
         current_price=current_price if current_price is None else round(current_price, 4),
         unrealized_pl=round(unrealized_pl, 2),
     )
+
+
+# --- LOTS: CRUD, METRICS, ASSEMBLER ---
+from typing import List, Optional
+
+
+def list_lots(db: Session, cycle_id: int | None = None, ticker: str | None = None, status: str | None = None, covered: bool | None = None) -> List[models.Lot]:
+    q = db.query(models.Lot)
+    if cycle_id is not None:
+        q = q.filter(models.Lot.cycle_id == cycle_id)
+    if ticker is not None:
+        q = q.filter(models.Lot.ticker == ticker)
+    if status is not None:
+        q = q.filter(models.Lot.status == status)
+    if covered is True:
+        q = q.filter(models.Lot.status == "OPEN_COVERED")
+    if covered is False:
+        q = q.filter(models.Lot.status == "OPEN_UNCOVERED")
+    return q.order_by(models.Lot.id.desc()).all()
+
+
+def get_lot(db: Session, lot_id: int) -> models.Lot | None:
+    return db.query(models.Lot).filter(models.Lot.id == lot_id).first()
+
+
+def create_lot(db: Session, payload: schemas.LotCreate) -> models.Lot:
+    lot = models.Lot(**payload.dict())
+    db.add(lot)
+    db.commit()
+    db.refresh(lot)
+    return lot
+
+
+def update_lot(db: Session, lot_id: int, payload: schemas.LotUpdate) -> models.Lot | None:
+    lot = get_lot(db, lot_id)
+    if not lot:
+        return None
+    allowed = {"status", "notes", "cost_basis_effective", "acquisition_date"}
+    for k, v in payload.dict(exclude_unset=True).items():
+        if k in allowed:
+            setattr(lot, k, v)
+    db.commit()
+    db.refresh(lot)
+    return lot
+
+
+def delete_lot(db: Session, lot_id: int) -> bool:
+    lot = get_lot(db, lot_id)
+    if not lot:
+        return False
+    db.query(models.LotLink).filter(models.LotLink.lot_id == lot_id).delete()
+    db.query(models.LotMetrics).filter(models.LotMetrics.lot_id == lot_id).delete()
+    db.delete(lot)
+    db.commit()
+    return True
+
+
+def list_lot_links(db: Session, lot_id: int) -> List[models.LotLink]:
+    return db.query(models.LotLink).filter(models.LotLink.lot_id == lot_id).all()
+
+
+def create_lot_link(db: Session, payload: schemas.LotLinkCreate) -> models.LotLink:
+    link = models.LotLink(**payload.dict())
+    db.add(link)
+    db.commit()
+    db.refresh(link)
+    return link
+
+
+def delete_lot_link(db: Session, link_id: int) -> bool:
+    link = db.query(models.LotLink).filter(models.LotLink.id == link_id).first()
+    if not link:
+        return False
+    db.delete(link)
+    db.commit()
+    return True
+
+
+def refresh_lot_metrics(db: Session, lot_id: int) -> schemas.LotMetricsRead:
+    lot = get_lot(db, lot_id)
+    if not lot:
+        raise HTTPException(status_code=404, detail="Lot not found")
+    links = list_lot_links(db, lot_id)
+    linked_event_ids = [l.linked_object_id for l in links if l.linked_object_type == "WHEEL_EVENT"]
+    events = []
+    if linked_event_ids:
+        events = (
+            db.query(models.WheelEvent)
+            .filter(models.WheelEvent.id.in_(linked_event_ids))
+            .all()
+        )
+
+    net_premiums = 0.0
+    stock_cost_total = 0.0
+    fees_total = 0.0
+    realized_pl = 0.0
+
+    for e in events:
+        fees = e.fees or 0.0
+        fees_total += fees
+        et = e.event_type
+        contracts = e.contracts or 0
+        qty = e.quantity_shares or 0
+        if et in ("SELL_PUT_OPEN", "SELL_CALL_OPEN"):
+            net_premiums += (e.premium or 0) * contracts * 100
+        elif et in ("SELL_PUT_CLOSE", "SELL_CALL_CLOSE"):
+            net_premiums -= (e.premium or 0) * contracts * 100
+        elif et in ("BUY_SHARES", "ASSIGNMENT"):
+            stock_cost_total += (e.price or e.strike or 0) * qty
+        elif et in ("SELL_SHARES", "CALLED_AWAY"):
+            # realized component relative to effective basis calculated later; here treat as stock proceeds
+            stock_cost_total -= (e.price or e.strike or 0) * qty
+
+    # Effective cost basis per lot (100 shares)
+    cost_basis_effective = None
+    try:
+        cost_basis_effective = (stock_cost_total - net_premiums + fees_total) / 100.0
+    except Exception:
+        cost_basis_effective = None
+
+    lot.cost_basis_effective = cost_basis_effective
+    db.commit()
+
+    # Unrealized P/L estimate (stock-only)
+    unrealized_pl = 0.0
+    current_price = None
+    try:
+        if lot.ticker:
+            p = fetch_yf_price(lot.ticker)
+            if p is not None:
+                current_price = float(p)
+    except Exception:
+        current_price = None
+    # If lot is closed, unrealized is zero
+    if lot.status in ("CLOSED_CALLED_AWAY", "CLOSED_SOLD", "CLOSED_MERGED"):
+        unrealized_pl = 0.0
+    elif current_price is not None and cost_basis_effective is not None:
+        unrealized_pl = (current_price - cost_basis_effective) * 100.0
+
+    # Upsert metrics row
+    m = db.query(models.LotMetrics).filter(models.LotMetrics.lot_id == lot_id).first()
+    if not m:
+        m = models.LotMetrics(lot_id=lot_id)
+        db.add(m)
+    m.net_premiums = round(net_premiums, 2)
+    m.stock_cost_total = round(stock_cost_total, 2)
+    m.fees_total = round(fees_total, 2)
+    m.realized_pl = round(realized_pl, 2)
+    m.unrealized_pl = round(unrealized_pl, 2)
+    db.commit()
+
+    return schemas.LotMetricsRead(
+        lot_id=lot_id,
+        net_premiums=m.net_premiums,
+        stock_cost_total=m.stock_cost_total,
+        fees_total=m.fees_total,
+        realized_pl=m.realized_pl,
+        unrealized_pl=m.unrealized_pl,
+    )
+
+
+class LotAssembler:
+    """Deterministically groups WheelEvents into 100-share lots.
+
+    v1 assumptions:
+    - 1 assignment event equals 100 shares acquired.
+    - BUY_SHARES accumulate into 100-share chunks.
+    - SELL_CALL_OPEN binds to oldest OPEN_UNCOVERED lot.
+    """
+
+    def __init__(self, db: Session):
+        self.db = db
+
+    def rebuild_for_cycle(self, cycle_id: int) -> List[models.Lot]:
+        # Purge existing
+        existing_lots = self.db.query(models.Lot).filter(models.Lot.cycle_id == cycle_id).all()
+        for lot in existing_lots:
+            self.db.query(models.LotLink).filter(models.LotLink.lot_id == lot.id).delete()
+            self.db.query(models.LotMetrics).filter(models.LotMetrics.lot_id == lot.id).delete()
+        self.db.query(models.Lot).filter(models.Lot.cycle_id == cycle_id).delete()
+        self.db.commit()
+
+        cycle = self.db.query(models.WheelCycle).filter(models.WheelCycle.id == cycle_id).first()
+        ticker = cycle.ticker if cycle else None
+        events = (
+            self.db.query(models.WheelEvent)
+            .filter(models.WheelEvent.cycle_id == cycle_id)
+            .order_by(models.WheelEvent.trade_date.asc(), models.WheelEvent.id.asc())
+            .all()
+        )
+
+        shares_buffer = 0
+        created: List[models.Lot] = []
+
+        for e in events:
+            et = e.event_type
+            if et == "ASSIGNMENT":
+                lot = models.Lot(
+                    cycle_id=cycle_id,
+                    ticker=ticker,
+                    acquisition_method="PUT_ASSIGNMENT",
+                    acquisition_date=e.trade_date,
+                    status="OPEN_UNCOVERED",
+                )
+                self.db.add(lot)
+                self.db.commit()
+                self.db.refresh(lot)
+                created.append(lot)
+                self.db.add(models.LotLink(lot_id=lot.id, linked_object_type="WHEEL_EVENT", linked_object_id=e.id, role="PUT_ASSIGNMENT"))
+                self.db.add(models.LotMetrics(lot_id=lot.id))
+                self.db.commit()
+                refresh_lot_metrics(self.db, lot.id)
+            elif et == "BUY_SHARES":
+                shares_buffer += int(e.quantity_shares or 0)
+                while shares_buffer >= 100:
+                    lot = models.Lot(
+                        cycle_id=cycle_id,
+                        ticker=ticker,
+                        acquisition_method="OUTRIGHT_PURCHASE",
+                        acquisition_date=e.trade_date,
+                        status="OPEN_UNCOVERED",
+                    )
+                    self.db.add(lot)
+                    self.db.commit()
+                    self.db.refresh(lot)
+                    created.append(lot)
+                    self.db.add(models.LotLink(lot_id=lot.id, linked_object_type="WHEEL_EVENT", linked_object_id=e.id, role="STOCK_BUY"))
+                    self.db.add(models.LotMetrics(lot_id=lot.id))
+                    self.db.commit()
+                    refresh_lot_metrics(self.db, lot.id)
+                    shares_buffer -= 100
+            elif et == "SELL_CALL_OPEN":
+                # bind to oldest open_uncovered lot
+                open_lot = (
+                    self.db.query(models.Lot)
+                    .filter(models.Lot.cycle_id == cycle_id, models.Lot.status == "OPEN_UNCOVERED")
+                    .order_by(models.Lot.id.asc())
+                    .first()
+                )
+                if open_lot:
+                    self.db.add(models.LotLink(lot_id=open_lot.id, linked_object_type="WHEEL_EVENT", linked_object_id=e.id, role="CALL_OPEN"))
+                    open_lot.status = "OPEN_COVERED"
+                    self.db.commit()
+                    refresh_lot_metrics(self.db, open_lot.id)
+            elif et == "SELL_CALL_CLOSE":
+                covered_lot = (
+                    self.db.query(models.Lot)
+                    .filter(models.Lot.cycle_id == cycle_id, models.Lot.status == "OPEN_COVERED")
+                    .order_by(models.Lot.id.asc())
+                    .first()
+                )
+                if covered_lot:
+                    self.db.add(models.LotLink(lot_id=covered_lot.id, linked_object_type="WHEEL_EVENT", linked_object_id=e.id, role="CALL_CLOSE"))
+                    covered_lot.status = "OPEN_UNCOVERED"
+                    self.db.commit()
+                    refresh_lot_metrics(self.db, covered_lot.id)
+            elif et == "CALLED_AWAY":
+                covered_lot = (
+                    self.db.query(models.Lot)
+                    .filter(models.Lot.cycle_id == cycle_id, models.Lot.status == "OPEN_COVERED")
+                    .order_by(models.Lot.id.asc())
+                    .first()
+                )
+                if covered_lot:
+                    self.db.add(models.LotLink(lot_id=covered_lot.id, linked_object_type="WHEEL_EVENT", linked_object_id=e.id, role="CALL_ASSIGNMENT"))
+                    covered_lot.status = "CLOSED_CALLED_AWAY"
+                    self.db.commit()
+                    refresh_lot_metrics(self.db, covered_lot.id)
+
+        return created
+
+
+def rebuild_lots_for_cycle(db: Session, cycle_id: int) -> List[models.Lot]:
+    assembler = LotAssembler(db)
+    return assembler.rebuild_for_cycle(cycle_id)

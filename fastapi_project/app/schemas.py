@@ -182,6 +182,63 @@ class WheelMetricsRead(BaseModel):
     current_price: float | None = None
     unrealized_pl: float
 
+
+# --- Lots ---
+class LotBase(BaseModel):
+    cycle_id: int
+    ticker: str
+    acquisition_method: str
+    acquisition_date: Optional[str] = None
+    status: Optional[str] = Field(default="OPEN_UNCOVERED")
+    cost_basis_effective: Optional[float] = None
+    notes: Optional[str] = None
+
+
+class LotCreate(LotBase):
+    pass
+
+
+class LotRead(LotBase):
+    id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class LotUpdate(BaseModel):
+    status: Optional[str] = None
+    notes: Optional[str] = None
+    cost_basis_effective: Optional[float] = None
+    acquisition_date: Optional[str] = None
+
+
+class LotLinkBase(BaseModel):
+    lot_id: int
+    linked_object_type: str  # e.g., WHEEL_EVENT
+    linked_object_id: int
+    role: str
+
+
+class LotLinkCreate(LotLinkBase):
+    pass
+
+
+class LotLinkRead(LotLinkBase):
+    id: int
+
+    class Config:
+        from_attributes = True
+
+
+class LotMetricsRead(BaseModel):
+    lot_id: int
+    net_premiums: float = 0.0
+    stock_cost_total: float = 0.0
+    fees_total: float = 0.0
+    realized_pl: float = 0.0
+    unrealized_pl: float = 0.0
+
 # --- USER SCHEMAS ---
 
 class UserBase(BaseModel):

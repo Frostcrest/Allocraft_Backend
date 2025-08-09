@@ -129,6 +129,44 @@ class WheelEvent(Base):
     link_event_id = Column(Integer, ForeignKey("wheel_events.id"), nullable=True)
     notes = Column(String, nullable=True)
 
+
+class Lot(Base):
+    """Represents a 100-share lot within a wheel cycle."""
+    __tablename__ = "lots"
+
+    id = Column(Integer, primary_key=True, index=True)
+    cycle_id = Column(Integer, ForeignKey("wheel_cycles.id"), index=True, nullable=False)
+    ticker = Column(String, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    acquisition_method = Column(String, index=True)  # PUT_ASSIGNMENT, OUTRIGHT_PURCHASE, CORPORATE_ACTION
+    acquisition_date = Column(String, nullable=True)
+    status = Column(String, index=True, default="OPEN_UNCOVERED")
+    cost_basis_effective = Column(Float, nullable=True)
+    notes = Column(String, nullable=True)
+
+
+class LotLink(Base):
+    """Links a lot to source events/trades to preserve audit trail."""
+    __tablename__ = "lot_links"
+
+    id = Column(Integer, primary_key=True, index=True)
+    lot_id = Column(Integer, ForeignKey("lots.id"), index=True, nullable=False)
+    linked_object_type = Column(String, index=True)  # e.g., WHEEL_EVENT
+    linked_object_id = Column(Integer, index=True)
+    role = Column(String, index=True)  # PUT_SOLD, PUT_ASSIGNMENT, STOCK_BUY, CALL_OPEN, CALL_CLOSE, CALL_ASSIGNMENT, STOCK_SELL, FEE, ADJUSTMENT
+
+
+class LotMetrics(Base):
+    """Materialized metrics for a lot for fast reads."""
+    __tablename__ = "lot_metrics"
+
+    lot_id = Column(Integer, ForeignKey("lots.id"), primary_key=True, index=True)
+    net_premiums = Column(Float, default=0.0)
+    stock_cost_total = Column(Float, default=0.0)
+    fees_total = Column(Float, default=0.0)
+    realized_pl = Column(Float, default=0.0)
+    unrealized_pl = Column(Float, default=0.0)
+
 class Price(Base):
     """
     Represents a historical or latest price for a ticker.
