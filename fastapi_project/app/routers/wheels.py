@@ -85,3 +85,65 @@ async def upload_wheels_csv(file: UploadFile = File(...), db: Session = Depends(
             continue
     db.commit()
     return {"created": len(created)}
+
+
+# --- Event-based Wheel endpoints ---
+
+@router.get("/wheel-cycles", response_model=list[schemas.WheelCycleRead])
+@router.get("/wheel_cycles", response_model=list[schemas.WheelCycleRead])
+def list_wheel_cycles(db: Session = Depends(get_db)):
+    return crud.list_wheel_cycles(db)
+
+
+@router.post("/wheel-cycles", response_model=schemas.WheelCycleRead)
+@router.post("/wheel_cycles", response_model=schemas.WheelCycleRead)
+def create_wheel_cycle(payload: schemas.WheelCycleCreate, db: Session = Depends(get_db)):
+    return crud.create_wheel_cycle(db, payload)
+
+
+@router.put("/wheel-cycles/{cycle_id}", response_model=schemas.WheelCycleRead)
+@router.put("/wheel_cycles/{cycle_id}", response_model=schemas.WheelCycleRead)
+def update_wheel_cycle(cycle_id: int, payload: schemas.WheelCycleCreate, db: Session = Depends(get_db)):
+    return crud.update_wheel_cycle(db, cycle_id, payload)
+
+
+@router.delete("/wheel-cycles/{cycle_id}")
+@router.delete("/wheel_cycles/{cycle_id}")
+def delete_wheel_cycle(cycle_id: int, db: Session = Depends(get_db)):
+    ok = crud.delete_wheel_cycle(db, cycle_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Wheel cycle not found")
+    return {"detail": "Wheel cycle deleted"}
+
+
+@router.get("/wheel-events", response_model=list[schemas.WheelEventRead])
+@router.get("/wheel_events", response_model=list[schemas.WheelEventRead])
+def list_wheel_events(cycle_id: int | None = None, db: Session = Depends(get_db)):
+    return crud.list_wheel_events(db, cycle_id)
+
+
+@router.post("/wheel-events", response_model=schemas.WheelEventRead)
+@router.post("/wheel_events", response_model=schemas.WheelEventRead)
+def create_wheel_event(payload: schemas.WheelEventCreate, db: Session = Depends(get_db)):
+    return crud.create_wheel_event(db, payload)
+
+
+@router.put("/wheel-events/{event_id}", response_model=schemas.WheelEventRead)
+@router.put("/wheel_events/{event_id}", response_model=schemas.WheelEventRead)
+def update_wheel_event(event_id: int, payload: schemas.WheelEventCreate, db: Session = Depends(get_db)):
+    return crud.update_wheel_event(db, event_id, payload)
+
+
+@router.delete("/wheel-events/{event_id}")
+@router.delete("/wheel_events/{event_id}")
+def delete_wheel_event(event_id: int, db: Session = Depends(get_db)):
+    ok = crud.delete_wheel_event(db, event_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Wheel event not found")
+    return {"detail": "Wheel event deleted"}
+
+
+@router.get("/wheel-metrics/{cycle_id}", response_model=schemas.WheelMetricsRead)
+@router.get("/wheel_metrics/{cycle_id}", response_model=schemas.WheelMetricsRead)
+def get_wheel_metrics(cycle_id: int, db: Session = Depends(get_db)):
+    return crud.calculate_wheel_metrics(db, cycle_id)

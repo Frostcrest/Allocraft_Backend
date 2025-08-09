@@ -89,6 +89,46 @@ class WheelStrategy(Base):
     called_away_shares_quantity = Column(Integer, nullable=True)
     called_away_status = Column(String, nullable=True)
 
+
+class WheelCycle(Base):
+    """
+    Event-based Wheel cycle container. Tracks a single wheel run for a ticker.
+    """
+    __tablename__ = "wheel_cycles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    cycle_key = Column(String, index=True)  # e.g., "AAPL-1"
+    ticker = Column(String, index=True)
+    started_at = Column(String, nullable=True)  # ISO date string
+    status = Column(String, default="Open")  # Open/Closed
+    notes = Column(String, nullable=True)
+
+
+class WheelEvent(Base):
+    """
+    A single event within a WheelCycle. Enables adding entries at any stage
+    (buy shares, sell calls/puts, assignment, called away, sell shares, etc.)
+    and linking related open/close pairs via link_event_id.
+    """
+    __tablename__ = "wheel_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    cycle_id = Column(Integer, ForeignKey("wheel_cycles.id"), index=True, nullable=False)
+    event_type = Column(String, index=True)  # Enum-like string
+    trade_date = Column(String, nullable=True)  # ISO date string
+
+    # Common numerical fields (optional depending on event_type)
+    quantity_shares = Column(Float, nullable=True)
+    contracts = Column(Integer, nullable=True)
+    price = Column(Float, nullable=True)    # share price for buy/sell, or general amount
+    strike = Column(Float, nullable=True)   # strike associated with options/assignment
+    premium = Column(Float, nullable=True)  # premium per contract
+    fees = Column(Float, nullable=True)     # commissions/fees (positive = cost)
+
+    # Link to another event (e.g., CLOSE referencing OPEN; called away referencing sold call)
+    link_event_id = Column(Integer, ForeignKey("wheel_events.id"), nullable=True)
+    notes = Column(String, nullable=True)
+
 class Price(Base):
     """
     Represents a historical or latest price for a ticker.

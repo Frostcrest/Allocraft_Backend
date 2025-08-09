@@ -117,6 +117,69 @@ class WheelStrategyRead(WheelStrategyBase):
     class Config:
         from_attributes = True
 
+# --- EVENT-BASED WHEEL SCHEMAS ---
+
+class WheelCycleBase(BaseModel):
+    cycle_key: str = Field(..., description="Unique key per wheel cycle, e.g., AAPL-1")
+    ticker: str
+    started_at: Optional[date] = None
+    status: Literal["Open", "Closed"] = "Open"
+    notes: Optional[str] = None
+
+class WheelCycleCreate(WheelCycleBase):
+    pass
+
+class WheelCycleRead(WheelCycleBase):
+    id: int
+
+    class Config:
+        from_attributes = True
+
+
+class WheelEventBase(BaseModel):
+    cycle_id: int
+    event_type: Literal[
+        "BUY_SHARES",
+        "SELL_SHARES",
+        "SELL_PUT_OPEN",
+        "SELL_PUT_CLOSE",
+        "ASSIGNMENT",
+        "SELL_CALL_OPEN",
+        "SELL_CALL_CLOSE",
+        "CALLED_AWAY",
+    ]
+    trade_date: Optional[date] = None
+
+    quantity_shares: Optional[float] = None
+    contracts: Optional[int] = None
+    price: Optional[float] = None
+    strike: Optional[float] = None
+    premium: Optional[float] = None
+    fees: Optional[float] = None
+
+    link_event_id: Optional[int] = None
+    notes: Optional[str] = None
+
+class WheelEventCreate(WheelEventBase):
+    pass
+
+class WheelEventRead(WheelEventBase):
+    id: int
+
+    class Config:
+        from_attributes = True
+
+
+class WheelMetricsRead(BaseModel):
+    cycle_id: int
+    ticker: str
+    shares_owned: float
+    average_cost_basis: float
+    total_cost_remaining: float
+    net_options_cashflow: float
+    realized_stock_pl: float
+    total_realized_pl: float
+
 # --- USER SCHEMAS ---
 
 class UserBase(BaseModel):
