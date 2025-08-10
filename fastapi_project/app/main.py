@@ -9,6 +9,7 @@ import os
 from dotenv import load_dotenv
 from datetime import datetime
 import yfinance as yf
+from pathlib import Path
 
 # Load environment variables from a .env file (if present)
 load_dotenv()
@@ -33,12 +34,14 @@ app.add_middleware(
 )
 
 # --- Static Files ---
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+BASE_DIR = Path(__file__).resolve().parent
+STATIC_DIR = BASE_DIR / "static"
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 @app.get("/", include_in_schema=False)
 def read_root():
     """Serve the static index.html at root."""
-    return FileResponse("app/static/index.html")
+    return FileResponse(str(STATIC_DIR / "index.html"))
 
 @app.get("/healthz", tags=["Meta"]) 
 def healthz():
