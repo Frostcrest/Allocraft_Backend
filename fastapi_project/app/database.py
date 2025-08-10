@@ -7,7 +7,9 @@ for use in other parts of the application.
 """
 
 import os
+from pathlib import Path
 from sqlalchemy import create_engine
+from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import sessionmaker, declarative_base
 from typing import Generator
 
@@ -19,6 +21,26 @@ from typing import Generator
 #   sqlite:////opt/render/data/app.db  (Render disk)
 #   postgresql+psycopg2://user:pass@host:5432/dbname
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test.db")
+
+# If using SQLite, ensure the target directory exists and is writable.
+# This prevents errors like "sqlite3.OperationalError: unable to open database file"
+# when running on platforms with read-only code dirs (e.g., Render) or when the
+# path points to a mounted disk (e.g., /opt/render/data).
+try:
+    if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
+        url = make_url(SQLALCHEMY_DATABASE_URL)
+        db_path = url.database  # May be relative (./test.db) or absolute (/opt/render/data/app.db)
+        if db_path and db_path != ":memory:":
+            # Resolve relative paths relative to current working directory
+            db_file = Path(db_path)
+            if not db_file.is_absolute():
+                db_file = Path.cwd() / db_file
+            db_dir = db_file.parent
+            db_dir.mkdir(parents=True, exist_ok=True)
+except Exception:
+    # Fail open: if anything goes wrong, let SQLAlchemy handle/raise at connect
+    # (we avoid crashing import-time with path parsing issues)
+    pass
 
 # Create the SQLAlchemy engine.
 # The 'connect_args' option is required for SQLite to allow usage in a multithreaded FastAPI app.
