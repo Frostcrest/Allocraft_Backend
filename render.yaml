@@ -14,3 +14,7 @@ services:
       - key: DATABASE_URL
         # For free plan, use the persistent disk at /opt/render/data
         value: sqlite:////opt/render/data/allocraft.db
+    disks:
+      - name: data
+        mountPath: /opt/render/data
+        sizeGB: 1
