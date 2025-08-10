@@ -2,10 +2,13 @@ services:
   - type: web
     name: allocraft-backend
     env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn fastapi_project.app.main:app --host 0.0.0.0 --port $PORT
+  # Install dependencies from repo root
+  buildCommand: pip install -r ../requirements.txt
+  # Run from the fastapi_project folder so 'app' package is importable
+  startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     plan: free
-    workingDir: .
+  # Set working directory so Python finds the 'app' package
+  workingDir: fastapi_project
     envVars:
       - key: FRONTEND_ORIGINS
         value: https://allocraft-lite.onrender.com,https://allocraft-lite-dev.onrender.com,http://localhost:5173
