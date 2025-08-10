@@ -2,7 +2,15 @@ services:
   - type: web
     name: allocraft-backend
     env: python
-    buildCommand: ""
-    startCommand: uvicorn fastapi_project.app.main:app --host 0.0.0.0 --port 10000
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn fastapi_project.app.main:app --host 0.0.0.0 --port $PORT
     plan: free
     workingDir: .
+    envVars:
+      - key: FRONTEND_ORIGINS
+        value: https://allocraft-lite.onrender.com,https://allocraft-lite-dev.onrender.com,http://localhost:5173
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        # For free plan, use the persistent disk at /opt/render/data
+        value: sqlite:////opt/render/data/allocraft.db

@@ -6,21 +6,24 @@ It uses SQLAlchemy to connect to a SQLite database and provides a session factor
 for use in other parts of the application.
 """
 
+import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from typing import Generator
 
 # --- DATABASE CONFIGURATION ---
 
-# The URL that tells SQLAlchemy how to connect to the SQLite database file.
-# './test.db' means the database file will be created in the current directory.
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
+# The database URL is configurable via env var for deploys; falls back to local SQLite.
+# Examples:
+#   sqlite:///./test.db
+#   sqlite:////opt/render/data/app.db  (Render disk)
+#   postgresql+psycopg2://user:pass@host:5432/dbname
+SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test.db")
 
 # Create the SQLAlchemy engine.
 # The 'connect_args' option is required for SQLite to allow usage in a multithreaded FastAPI app.
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
-)
+connect_args = {"check_same_thread": False} if SQLALCHEMY_DATABASE_URL.startswith("sqlite") else {}
+engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args=connect_args)
 
 # Create a session factory.
 # SessionLocal() will be used to get a database session in your API endpoints.
