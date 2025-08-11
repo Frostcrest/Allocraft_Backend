@@ -22,7 +22,7 @@ Returned summary contains counts by event type and lots created.
 from dataclasses import dataclass
 from pathlib import Path
 import csv
-from datetime import datetime, date
+from datetime import datetime, date, UTC
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
@@ -112,7 +112,7 @@ def _parse_date(s: Any) -> Optional[str]:
         if len(parts) >= 2:
             m = int(parts[0])
             d = int(parts[1])
-            y = datetime.utcnow().year
+            y = datetime.now(UTC).year
             if len(parts) >= 3:
                 yy = int(parts[2])
                 if yy < 100:

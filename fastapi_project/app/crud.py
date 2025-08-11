@@ -1,7 +1,7 @@
 from app.utils.security import hash_password, verify_password
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
-from datetime import datetime
+from datetime import datetime, UTC
 
 from app import models, schemas
 from app.services.price_service import (
@@ -62,7 +62,7 @@ def create_price(db: Session, price: float, ticker_id: int, timestamp: datetime 
     Create and persist a new price for a ticker.
     """
     if timestamp is None:
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(UTC)
     db_price = models.Price(
         price=price,
         ticker_id=ticker_id,
@@ -144,7 +144,7 @@ def create_stock(db: Session, stock: schemas.StockCreate):
     """
     Create and persist a new stock position.
     """
-    db_stock = models.Stock(**stock.dict())
+    db_stock = models.Stock(**stock.model_dump())
     db.add(db_stock)
     db.commit()
     db.refresh(db_stock)
@@ -157,7 +157,7 @@ def update_stock(db: Session, stock_id: int, stock: schemas.StockCreate):
     db_stock = db.query(models.Stock).filter(models.Stock.id == stock_id).first()
     if not db_stock:
         raise HTTPException(status_code=404, detail="Stock not found")
-    for key, value in stock.dict().items():
+    for key, value in stock.model_dump().items():
         setattr(db_stock, key, value)
     db.commit()
     db.refresh(db_stock)
@@ -186,7 +186,7 @@ def create_option(db: Session, option: schemas.OptionCreate):
     """
     Create and persist a new option contract.
     """
-    db_option = models.Option(**option.dict())
+    db_option = models.Option(**option.model_dump())
     db.add(db_option)
     db.commit()
     db.refresh(db_option)
@@ -199,7 +199,7 @@ def update_option(db: Session, option_id: int, option: schemas.OptionCreate):
     db_option = db.query(models.Option).filter(models.Option.id == option_id).first()
     if not db_option:
         raise HTTPException(status_code=404, detail="Option not found")
-    for key, value in option.dict().items():
+    for key, value in option.model_dump().items():
         setattr(db_option, key, value)
     db.commit()
     db.refresh(db_option)
@@ -225,7 +225,7 @@ def get_wheels(db: Session):
     return db.query(models.WheelStrategy).all()
 
 def create_wheel(db: Session, wheel: schemas.WheelStrategyCreate):
-    db_wheel = models.WheelStrategy(**wheel.dict())
+    db_wheel = models.WheelStrategy(**wheel.model_dump())
     db.add(db_wheel)
     db.commit()
     db.refresh(db_wheel)
@@ -235,7 +235,7 @@ def update_wheel(db: Session, wheel_id: int, wheel: schemas.WheelStrategyCreate)
     db_wheel = db.query(models.WheelStrategy).filter(models.WheelStrategy.id == wheel_id).first()
     if not db_wheel:
         raise HTTPException(status_code=404, detail="Wheel strategy not found")
-    for key, value in wheel.dict().items():
+    for key, value in wheel.model_dump().items():
         setattr(db_wheel, key, value)
     db.commit()
     db.refresh(db_wheel)
@@ -347,7 +347,7 @@ def get_wheel_cycle(db: Session, cycle_id: int):
     return db.query(models.WheelCycle).filter(models.WheelCycle.id == cycle_id).first()
 
 def create_wheel_cycle(db: Session, payload: schemas.WheelCycleCreate):
-    cycle = models.WheelCycle(**payload.dict())
+    cycle = models.WheelCycle(**payload.model_dump())
     db.add(cycle)
     db.commit()
     db.refresh(cycle)
@@ -357,7 +357,7 @@ def update_wheel_cycle(db: Session, cycle_id: int, payload: schemas.WheelCycleCr
     cycle = get_wheel_cycle(db, cycle_id)
     if not cycle:
         raise HTTPException(status_code=404, detail="Wheel cycle not found")
-    for k, v in payload.dict().items():
+    for k, v in payload.model_dump().items():
         setattr(cycle, k, v)
     db.commit()
     db.refresh(cycle)
@@ -387,7 +387,7 @@ def create_wheel_event(db: Session, payload: schemas.WheelEventCreate):
     cycle = get_wheel_cycle(db, payload.cycle_id)
     if not cycle:
         raise HTTPException(status_code=404, detail="Wheel cycle not found")
-    evt = models.WheelEvent(**payload.dict())
+    evt = models.WheelEvent(**payload.model_dump())
     db.add(evt)
     db.commit()
     db.refresh(evt)
@@ -397,7 +397,7 @@ def update_wheel_event(db: Session, event_id: int, payload: schemas.WheelEventCr
     evt = get_wheel_event(db, event_id)
     if not evt:
         raise HTTPException(status_code=404, detail="Wheel event not found")
-    for k, v in payload.dict().items():
+    for k, v in payload.model_dump().items():
         setattr(evt, k, v)
     db.commit()
     db.refresh(evt)
@@ -521,7 +521,7 @@ def get_lot(db: Session, lot_id: int) -> models.Lot | None:
 
 
 def create_lot(db: Session, payload: schemas.LotCreate) -> models.Lot:
-    lot = models.Lot(**payload.dict())
+    lot = models.Lot(**payload.model_dump())
     db.add(lot)
     db.commit()
     db.refresh(lot)
@@ -533,7 +533,7 @@ def update_lot(db: Session, lot_id: int, payload: schemas.LotUpdate) -> models.L
     if not lot:
         return None
     allowed = {"status", "notes", "cost_basis_effective", "acquisition_date"}
-    for k, v in payload.dict(exclude_unset=True).items():
+    for k, v in payload.model_dump(exclude_unset=True).items():
         if k in allowed:
             setattr(lot, k, v)
     db.commit()
@@ -557,7 +557,7 @@ def list_lot_links(db: Session, lot_id: int) -> List[models.LotLink]:
 
 
 def create_lot_link(db: Session, payload: schemas.LotLinkCreate) -> models.LotLink:
-    link = models.LotLink(**payload.dict())
+    link = models.LotLink(**payload.model_dump())
     db.add(link)
     db.commit()
     db.refresh(link)

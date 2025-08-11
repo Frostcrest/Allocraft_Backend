@@ -17,7 +17,7 @@ from app.database import Base, engine, SessionLocal
 from app import models  # noqa: F401
 import os
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, UTC
 import yfinance as yf
 from pathlib import Path
 from typing import Optional
@@ -109,7 +109,7 @@ def get_option_expiries(ticker: str):
     try:
         ticker = ticker.upper()
         yf_ticker = yf.Ticker(ticker)
-        today = datetime.utcnow().date()
+        today = datetime.now(UTC).date()
         expiries = []
         for date_str in yf_ticker.options:
             expiry_date = datetime.strptime(date_str, "%Y-%m-%d").date()
@@ -125,7 +125,7 @@ def get_wheel_expiries(ticker: str):
     try:
         ticker = ticker.upper()
         yf_ticker = yf.Ticker(ticker)
-        today = datetime.utcnow().date()
+        today = datetime.now(UTC).date()
         expiries = []
         for date_str in yf_ticker.options:
             expiry_date = datetime.strptime(date_str, "%Y-%m-%d").date()
