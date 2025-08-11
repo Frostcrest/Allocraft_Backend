@@ -13,6 +13,7 @@ from typing import Dict, Any
 from app.database import get_db
 from app import models
 from app.crud import get_stocks, get_options
+from app.services.price_service import fetch_option_contract_price
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
@@ -39,7 +40,19 @@ def snapshot(db: Session = Depends(get_db)) -> Dict[str, Any]:
     options_invested_basis = 0.0
     for o in open_options:
         contracts = float(o.contracts or 0)
-        px = o.market_price_per_contract if o.market_price_per_contract is not None else (o.cost_basis or 0.0)
+        # Try to fetch exact lastPrice from yfinance option chain
+        precise_px = None
+        try:
+            if o.ticker and o.expiry_date and o.option_type and o.strike_price:
+                precise_px = fetch_option_contract_price(
+                    o.ticker,
+                    o.expiry_date,
+                    o.option_type,
+                    o.strike_price,
+                )
+        except Exception:
+            precise_px = None
+        px = precise_px if precise_px is not None else (o.market_price_per_contract if o.market_price_per_contract is not None else (o.cost_basis or 0.0))
         options_total_value += contracts * float(px or 0.0) * 100.0
         options_invested_basis += contracts * float(o.cost_basis or 0.0) * 100.0
 
