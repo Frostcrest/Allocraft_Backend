@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from app.database import Base, engine
+from app.database import Base, engine, SessionLocal
 # Import models before calling create_all to ensure all tables are registered
 from app import models  # noqa: F401
 import os
@@ -49,6 +49,35 @@ def healthz():
 
 # --- Database Initialization ---
 Base.metadata.create_all(bind=engine)
+
+# --- Ensure a default admin user exists ---
+def _ensure_default_admin():
+    """Create a default admin user (admin/admin123) if missing.
+    Intended for development; safe no-op if the user already exists.
+    """
+    try:
+        from app.models import User  # local import to avoid circulars at module import
+        from app.utils.security import hash_password
+        db = SessionLocal()
+        try:
+            existing = db.query(User).filter(User.username == "admin").first()
+            if not existing:
+                user = User(
+                    username="admin",
+                    email="admin@example.com",
+                    hashed_password=hash_password("admin123"),
+                    is_active=True,
+                    roles="admin",
+                )
+                db.add(user)
+                db.commit()
+        finally:
+            db.close()
+    except Exception:
+        # Fail-open: do not crash app if DB is unavailable at import time
+        pass
+
+_ensure_default_admin()
 
 # --- Routers ---
 from app.routers import stocks, options, wheels, tickers, auth, users  # noqa: E402
