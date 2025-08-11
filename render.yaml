@@ -2,20 +2,20 @@ services:
   - type: web
     name: allocraft-backend
     env: python
-  # Install dependencies from repo root
-  buildCommand: pip install -r ../requirements.txt
-  # Run from the fastapi_project folder so 'app' package is importable
-  startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     plan: free
-  # Set working directory so Python finds the 'app' package
-  workingDir: fastapi_project
+    # Use the app subfolder as the working directory for runtime
+    rootDir: fastapi_project
+    # Install dependencies from repo root (requirements.txt is at repo root)
+    buildCommand: pip install -r requirements.txt
+    # Start the FastAPI app
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: FRONTEND_ORIGINS
         value: https://allocraft-lite.onrender.com,https://allocraft-lite-dev.onrender.com,http://localhost:5173
       - key: SECRET_KEY
         generateValue: true
       - key: DATABASE_URL
-        # For free plan, use the persistent disk at /opt/render/data
+        # Persist DB on the attached disk
         value: sqlite:////opt/render/data/allocraft.db
     disks:
       - name: data
