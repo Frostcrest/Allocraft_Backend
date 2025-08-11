@@ -1,3 +1,13 @@
+"""
+Allocraft FastAPI App
+
+Beginner guide:
+- Serves the API and a simple static UI at '/'.
+- CORS allows the Vite dev server (http://localhost:5173) by default.
+- On startup, auto-imports Wheel Tracker CSVs from SEED_DROP_DIR or fastapi_project/seed_drop.
+- Ensures a default admin user exists (admin/admin123) for convenience.
+"""
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles

@@ -1,3 +1,11 @@
+"""
+Auth Dependencies
+
+Beginner guide:
+- DISABLE_AUTH=1 (default in local dev) returns a fake admin user so you can try the app quickly.
+- In production, you must be authenticated and have the required roles.
+"""
+
 from fastapi import Depends, HTTPException, status
 from app.routers.auth import get_current_user
 from app import models

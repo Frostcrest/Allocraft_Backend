@@ -1,3 +1,24 @@
+"""
+Wheels Router
+
+Beginner guide:
+- These endpoints power the Wheel Strategy views in the UI.
+- Two styles exist here:
+    1) Legacy CSV-based WheelStrategy CRUD (simple rows)
+    2) Event-based model: wheel cycles, wheel events, and lots (recommended)
+
+Contracts (inputs/outputs, simplified):
+- GET /wheels/wheel-cycles -> list of WheelCycleRead
+- POST /wheels/wheel-cycles { ticker, cycle_key?, ... } -> WheelCycleRead
+- GET /wheels/wheel-events?cycle_id=ID -> list of WheelEventRead
+- POST /wheels/wheel-events { cycle_id, event_type, trade_date, ... } -> WheelEventRead
+- GET /wheels/cycles/{id}/lots -> list of LotRead
+- GET /wheels/lots/{id}/metrics -> LotMetricsRead
+
+Common errors:
+- 404 when a resource ID doesn’t exist
+- 400 when an event payload is invalid (wrong type for bind/unbind)
+"""
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -11,22 +32,39 @@ router = APIRouter(prefix="/wheels", tags=["Wheels"])
 
 @router.get("/", response_model=list[schemas.WheelStrategyRead])
 def read_wheels(db: Session = Depends(get_db)):
-    """Get all wheel strategies."""
+    """Get all legacy (CSV-style) wheel strategies.
+
+    Returns: list[WheelStrategyRead]
+    """
     return crud.get_wheels(db)
 
 @router.post("/", response_model=schemas.WheelStrategyRead)
 def create_wheel(wheel: schemas.WheelStrategyCreate, db: Session = Depends(get_db)):
-    """Add a new wheel strategy."""
+    """Add a new legacy wheel strategy.
+
+    Input: WheelStrategyCreate
+    Returns: WheelStrategyRead
+    """
     return crud.create_wheel(db, wheel)
 
 @router.put("/{wheel_id}", response_model=schemas.WheelStrategyRead)
 def update_wheel(wheel_id: int, wheel: schemas.WheelStrategyCreate, db: Session = Depends(get_db)):
-    """Update an existing wheel strategy."""
+    """Update an existing legacy wheel strategy by ID.
+
+    Path: wheel_id
+    Input: WheelStrategyCreate
+    Returns: WheelStrategyRead
+    Errors: 404 if not found
+    """
     return crud.update_wheel(db, wheel_id, wheel)
 
 @router.delete("/{wheel_id}")
 def delete_wheel(wheel_id: int, db: Session = Depends(get_db)):
-    """Delete a wheel strategy by its ID."""
+    """Delete a legacy wheel strategy by ID.
+
+    Returns: { detail: string }
+    Errors: 404 if not found
+    """
     success = crud.delete_wheel(db, wheel_id)
     if not success:
         raise HTTPException(status_code=404, detail="Wheel strategy not found")
@@ -34,7 +72,7 @@ def delete_wheel(wheel_id: int, db: Session = Depends(get_db)):
 
 @router.get("/template")
 def download_wheels_csv_template():
-    """Download a CSV template for wheel strategies."""
+    """Download a CSV template for legacy wheel strategies."""
     csv_content = (
         "wheel_id,ticker,trade_date,"
         "sell_put_strike_price,sell_put_open_premium,sell_put_closed_premium,sell_put_status,sell_put_quantity,"
@@ -52,7 +90,11 @@ def download_wheels_csv_template():
 
 @router.post("/upload")
 async def upload_wheels_csv(file: UploadFile = File(...), db: Session = Depends(get_db)):
-    """Upload a CSV file to bulk add wheel strategies."""
+    """Upload a CSV file to bulk add legacy wheel strategies.
+
+    Input: multipart/form-data with CSV file
+    Returns: { created: number }
+    """
     contents = await file.read()
     decoded = contents.decode("utf-8").splitlines()
     reader = csv.DictReader(decoded)
@@ -93,24 +135,45 @@ async def upload_wheels_csv(file: UploadFile = File(...), db: Session = Depends(
 @router.get("/wheel-cycles", response_model=list[schemas.WheelCycleRead])
 @router.get("/wheel_cycles", response_model=list[schemas.WheelCycleRead])
 def list_wheel_cycles(db: Session = Depends(get_db)):
+    """List event-based wheel cycles.
+
+    Returns: list[WheelCycleRead]
+    """
     return crud.list_wheel_cycles(db)
 
 
 @router.post("/wheel-cycles", response_model=schemas.WheelCycleRead)
 @router.post("/wheel_cycles", response_model=schemas.WheelCycleRead)
 def create_wheel_cycle(payload: schemas.WheelCycleCreate, db: Session = Depends(get_db)):
+    """Create a new wheel cycle.
+
+    Input: WheelCycleCreate
+    Returns: WheelCycleRead
+    """
     return crud.create_wheel_cycle(db, payload)
 
 
 @router.put("/wheel-cycles/{cycle_id}", response_model=schemas.WheelCycleRead)
 @router.put("/wheel_cycles/{cycle_id}", response_model=schemas.WheelCycleRead)
 def update_wheel_cycle(cycle_id: int, payload: schemas.WheelCycleCreate, db: Session = Depends(get_db)):
+    """Update an existing wheel cycle by ID.
+
+    Path: cycle_id
+    Input: WheelCycleCreate
+    Returns: WheelCycleRead
+    Errors: 404 if not found
+    """
     return crud.update_wheel_cycle(db, cycle_id, payload)
 
 
 @router.delete("/wheel-cycles/{cycle_id}")
 @router.delete("/wheel_cycles/{cycle_id}")
 def delete_wheel_cycle(cycle_id: int, db: Session = Depends(get_db)):
+    """Delete a wheel cycle by ID (also removes its events).
+
+    Returns: { detail: string }
+    Errors: 404 if not found
+    """
     ok = crud.delete_wheel_cycle(db, cycle_id)
     if not ok:
         raise HTTPException(status_code=404, detail="Wheel cycle not found")
@@ -120,24 +183,47 @@ def delete_wheel_cycle(cycle_id: int, db: Session = Depends(get_db)):
 @router.get("/wheel-events", response_model=list[schemas.WheelEventRead])
 @router.get("/wheel_events", response_model=list[schemas.WheelEventRead])
 def list_wheel_events(cycle_id: int | None = None, db: Session = Depends(get_db)):
+    """List wheel events, optionally filtered by cycle_id.
+
+    Query: cycle_id? (int)
+    Returns: list[WheelEventRead]
+    """
     return crud.list_wheel_events(db, cycle_id)
 
 
 @router.post("/wheel-events", response_model=schemas.WheelEventRead)
 @router.post("/wheel_events", response_model=schemas.WheelEventRead)
 def create_wheel_event(payload: schemas.WheelEventCreate, db: Session = Depends(get_db)):
+    """Create a wheel event.
+
+    Input: WheelEventCreate
+    Returns: WheelEventRead
+    Errors: 404 if cycle not found
+    """
     return crud.create_wheel_event(db, payload)
 
 
 @router.put("/wheel-events/{event_id}", response_model=schemas.WheelEventRead)
 @router.put("/wheel_events/{event_id}", response_model=schemas.WheelEventRead)
 def update_wheel_event(event_id: int, payload: schemas.WheelEventCreate, db: Session = Depends(get_db)):
+    """Update a wheel event by ID.
+
+    Path: event_id
+    Input: WheelEventCreate
+    Returns: WheelEventRead
+    Errors: 404 if not found
+    """
     return crud.update_wheel_event(db, event_id, payload)
 
 
 @router.delete("/wheel-events/{event_id}")
 @router.delete("/wheel_events/{event_id}")
 def delete_wheel_event(event_id: int, db: Session = Depends(get_db)):
+    """Delete a wheel event by ID.
+
+    Returns: { detail: string }
+    Errors: 404 if not found
+    """
     ok = crud.delete_wheel_event(db, event_id)
     if not ok:
         raise HTTPException(status_code=404, detail="Wheel event not found")
@@ -147,17 +233,31 @@ def delete_wheel_event(event_id: int, db: Session = Depends(get_db)):
 @router.get("/wheel-metrics/{cycle_id}", response_model=schemas.WheelMetricsRead)
 @router.get("/wheel_metrics/{cycle_id}", response_model=schemas.WheelMetricsRead)
 def get_wheel_metrics(cycle_id: int, db: Session = Depends(get_db)):
+    """Get summary wheel metrics for a cycle.
+
+    Returns: WheelMetricsRead
+    Errors: 404 if cycle not found
+    """
     return crud.calculate_wheel_metrics(db, cycle_id)
 
 
 # --- Lot endpoints ---
 @router.get("/cycles/{cycle_id}/lots", response_model=list[schemas.LotRead])
 def list_cycle_lots(cycle_id: int, status: str | None = None, covered: bool | None = None, ticker: str | None = None, db: Session = Depends(get_db)):
+    """List 100-share lots for a cycle with optional filters.
+
+    Query: status, covered, ticker
+    Returns: list[LotRead]
+    """
     return crud.list_lots(db, cycle_id=cycle_id, status=status, covered=covered, ticker=ticker)
 
 
 @router.get("/lots/{lot_id}", response_model=schemas.LotRead)
 def get_lot(lot_id: int, db: Session = Depends(get_db)):
+    """Get a single lot by ID.
+
+    Errors: 404 if not found
+    """
     lot = crud.get_lot(db, lot_id)
     if not lot:
         raise HTTPException(status_code=404, detail="Lot not found")
@@ -166,6 +266,10 @@ def get_lot(lot_id: int, db: Session = Depends(get_db)):
 
 @router.patch("/lots/{lot_id}", response_model=schemas.LotRead)
 def patch_lot(lot_id: int, payload: schemas.LotUpdate, db: Session = Depends(get_db)):
+    """Patch mutable fields of a lot (status, notes, cost basis, acquisition_date).
+
+    Errors: 404 if not found
+    """
     updated = crud.update_lot(db, lot_id, schemas.LotBase(**{**(crud.get_lot(db, lot_id).__dict__ if crud.get_lot(db, lot_id) else {}), **payload.dict(exclude_unset=True)}))
     if not updated:
         raise HTTPException(status_code=404, detail="Lot not found")
@@ -174,11 +278,16 @@ def patch_lot(lot_id: int, payload: schemas.LotUpdate, db: Session = Depends(get
 
 @router.get("/lots/{lot_id}/metrics", response_model=schemas.LotMetricsRead)
 def get_lot_metrics(lot_id: int, db: Session = Depends(get_db)):
+    """Compute/refresh lot metrics and return them."""
     return crud.refresh_lot_metrics(db, lot_id)
 
 
 @router.post("/lots/rebuild")
 def rebuild_lots(cycle_id: int, db: Session = Depends(get_db)):
+    """Rebuild lots deterministically from events for the given cycle.
+
+    Returns: { created: number }
+    """
     lots = crud.rebuild_lots_for_cycle(db, cycle_id)
     return {"created": len(lots)}
 
@@ -189,7 +298,10 @@ class BindCallPayload(BaseModel):
 
 @router.post("/lots/{lot_id}/bind-call")
 def bind_call(lot_id: int, payload: BindCallPayload, db: Session = Depends(get_db)):
-    # Link an option SELL_CALL_OPEN event to a lot and mark covered
+    """Link an option SELL_CALL_OPEN event to a lot and mark it covered.
+
+    Errors: 404 if lot not found, 400 if event is not a SELL_CALL_OPEN
+    """
     lot = crud.get_lot(db, lot_id)
     if not lot:
         raise HTTPException(status_code=404, detail="Lot not found")
@@ -205,6 +317,10 @@ def bind_call(lot_id: int, payload: BindCallPayload, db: Session = Depends(get_d
 
 @router.post("/lots/{lot_id}/unbind-call")
 def unbind_call(lot_id: int, db: Session = Depends(get_db)):
+    """Remove call links from a lot and mark it uncovered.
+
+    Errors: 404 if lot not found
+    """
     lot = crud.get_lot(db, lot_id)
     if not lot:
         raise HTTPException(status_code=404, detail="Lot not found")
@@ -221,6 +337,10 @@ def unbind_call(lot_id: int, db: Session = Depends(get_db)):
 
 @router.post("/lots/{lot_id}/bind-call-close")
 def bind_call_close(lot_id: int, payload: BindCallPayload, db: Session = Depends(get_db)):
+    """Bind a SELL_CALL_CLOSE event to a covered lot and mark it uncovered.
+
+    Errors: 404 if lot not found, 400 if event is not SELL_CALL_CLOSE
+    """
     lot = crud.get_lot(db, lot_id)
     if not lot:
         raise HTTPException(status_code=404, detail="Lot not found")
@@ -238,6 +358,10 @@ def bind_call_close(lot_id: int, payload: BindCallPayload, db: Session = Depends
 
 @router.get("/lots/{lot_id}/links")
 def get_lot_links(lot_id: int, db: Session = Depends(get_db)):
+    """Return lot links and their linked wheel events to aid the UI.
+
+    Returns: { links: LotLinkRead[], events: WheelEventRead[] }
+    """
     links = crud.list_lot_links(db, lot_id)
     event_ids = [l.linked_object_id for l in links if l.linked_object_type == "WHEEL_EVENT"]
     events = []
