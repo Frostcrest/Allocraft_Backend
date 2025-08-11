@@ -91,7 +91,7 @@ def _ensure_default_admin():
 _ensure_default_admin()
 
 # --- Routers ---
-from app.routers import stocks, options, wheels, tickers, auth, users, importer  # noqa: E402
+from app.routers import stocks, options, wheels, tickers, auth, users, importer, dashboard  # noqa: E402
 
 app.include_router(auth.router)
 app.include_router(stocks.router)
@@ -100,6 +100,7 @@ app.include_router(wheels.router)
 app.include_router(tickers.router)
 app.include_router(users.router)
 app.include_router(importer.router)
+app.include_router(dashboard.router)
 
 
 # --- Expiry helper endpoints for local UI compatibility ---
