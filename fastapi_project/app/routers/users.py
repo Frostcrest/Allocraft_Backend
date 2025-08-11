@@ -7,6 +7,17 @@ from app.dependencies import require_role
 router = APIRouter(prefix="/users", tags=["Users"])
 
 
+@router.post("/", response_model=list[schemas.UserRead] | schemas.UserRead)
+def admin_create_user(user: schemas.UserCreate, db: Session = Depends(get_db), current_user: models.User = Depends(require_role("admin"))):
+    """Create a new user (admin only).
+    Mirrors /auth/register but gated by admin role, returning the created user.
+    """
+    if crud.get_user_by_username(db, user.username) or crud.get_user_by_email(db, user.email):
+        raise HTTPException(status_code=400, detail="Username or email already registered")
+    db_user = crud.create_user(db, user)
+    return db_user
+
+
 @router.get("/", response_model=list[schemas.UserRead])
 def list_users(db: Session = Depends(get_db), current_user: models.User = Depends(require_role("admin"))):
     return crud.list_users(db)
