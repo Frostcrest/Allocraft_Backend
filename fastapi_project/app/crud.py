@@ -129,11 +129,16 @@ def get_yf_price(db: Session, symbol: str):
 
 # --- STOCK CRUD FUNCTIONS ---
 
-def get_stocks(db: Session, refresh_prices: bool = False):
+def get_stocks(db: Session, refresh_prices: bool = False, skip: int = 0, limit: int = 1000):
     """
-    Retrieve all stock positions.
+    Retrieve stock positions with optional pagination.
     """
-    return db.query(models.Stock).all()
+    q = db.query(models.Stock)
+    if skip:
+        q = q.offset(skip)
+    if limit:
+        q = q.limit(limit)
+    return q.all()
 
 def create_stock(db: Session, stock: schemas.StockCreate):
     """

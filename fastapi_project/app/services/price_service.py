@@ -1,35 +1,65 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import requests
 import yfinance as yf
 from twelvedata import TDClient
+from typing import Dict, Tuple, Optional
 
 TD_API_KEY = os.getenv("TWELVE_DATA_API_KEY", "")
 td = TDClient(apikey=TD_API_KEY) if TD_API_KEY else None
 
-def fetch_latest_price(ticker: str) -> tuple[float, datetime]:
+# --- Simple in-memory caches (process-local) ---
+_cache_prices_td: Dict[str, Tuple[float, datetime]] = {}
+_cache_prices_yf: Dict[str, Tuple[float, datetime]] = {}
+_cache_ticker_info: Dict[str, Tuple[dict, datetime]] = {}
+
+# TTLs
+PRICE_TTL = timedelta(seconds=20)
+TICKER_INFO_TTL = timedelta(hours=6)
+
+def fetch_latest_price(ticker: str) -> Optional[float]:
     """
     Fetch the latest price for a stock using the Twelve Data API.
-    Returns a tuple: (price, current UTC datetime).
-    If the API fails, price will be 0.
+    Returns a float or None. Caches for PRICE_TTL.
     """
-    api_key = os.getenv("TWELVE_DATA_API_KEY", "")
-    url = f"https://api.twelvedata.com/price?symbol={ticker}&apikey={api_key}"
-    response = requests.get(url)
-    data = response.json()
-    price = float(data.get("price", 0))
     now = datetime.utcnow()
-    return price, now
+    # Cache hit
+    hit = _cache_prices_td.get(ticker)
+    if hit and now - hit[1] < PRICE_TTL:
+        return hit[0]
+    if not TD_API_KEY:
+        return None
+    try:
+        url = f"https://api.twelvedata.com/price?symbol={ticker}&apikey={TD_API_KEY}"
+        response = requests.get(url, timeout=6)
+        response.raise_for_status()
+        data = response.json()
+        price_raw = data.get("price")
+        if price_raw is None:
+            return None
+        price = float(price_raw)
+        _cache_prices_td[ticker] = (price, now)
+        return price
+    except Exception:
+        return None
 
-def fetch_yf_price(ticker: str) -> float:
+def fetch_yf_price(ticker: str) -> Optional[float]:
     """
     Fetch the latest price for a stock using yfinance as a backup.
     Returns the price as a float, or None if not found.
     """
+    now = datetime.utcnow()
+    hit = _cache_prices_yf.get(ticker)
+    if hit and now - hit[1] < PRICE_TTL:
+        return hit[0]
     try:
         data = yf.Ticker(ticker)
-        price = data.fast_info['last_price']
-        return float(price)
+        price = data.fast_info.get('last_price')
+        if price is None:
+            return None
+        val = float(price)
+        _cache_prices_yf[ticker] = (val, now)
+        return val
     except Exception:
         return None
 
@@ -59,15 +89,19 @@ def fetch_option_contract_price(ticker: str, expiry_date: str, option_type: str,
 def fetch_ticker_info(symbol: str) -> dict:
     """
     Fetch detailed information about a ticker symbol using Twelve Data API.
-    Returns a dictionary with ticker information.
+    Returns a dictionary with ticker information. Caches for TICKER_INFO_TTL.
     """
+    now = datetime.utcnow()
+    hit = _cache_ticker_info.get(symbol)
+    if hit and now - hit[1] < TICKER_INFO_TTL:
+        return hit[0]
     try:
         if not td:
             return {}
         data = td.quote(symbol=symbol).as_json()
         if not data or "code" in data:
             return {}
-        return {
+        info = {
             "symbol": data.get("symbol"),
             "name": data.get("name"),
             "last_price": data.get("close"),
@@ -77,6 +111,7 @@ def fetch_ticker_info(symbol: str) -> dict:
             "market_cap": None,
             "timestamp": data.get("datetime"),
         }
-    except Exception as e:
-        print(f"Error fetching ticker info: {e}")
+        _cache_ticker_info[symbol] = (info, now)
+        return info
+    except Exception:
         return {}
