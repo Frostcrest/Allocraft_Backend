@@ -132,13 +132,33 @@ def get_yf_price(db: Session, symbol: str):
 def get_stocks(db: Session, refresh_prices: bool = False, skip: int = 0, limit: int = 1000):
     """
     Retrieve stock positions with optional pagination.
+    If refresh_prices is True, fetch latest prices for Open positions and populate current_price.
     """
     q = db.query(models.Stock)
     if skip:
         q = q.offset(skip)
     if limit:
         q = q.limit(limit)
-    return q.all()
+    items = q.all()
+    if refresh_prices:
+        changed = False
+        for s in items:
+            if (s.status or "Open").lower() == "open":
+                try:
+                    price = fetch_yf_price((s.ticker or "").upper())
+                    if price is not None:
+                        s.current_price = float(price)
+                        s.price_last_updated = datetime.now(UTC)
+                        changed = True
+                except Exception:
+                    # Best effort; continue on failure
+                    continue
+        if changed:
+            try:
+                db.commit()
+            except Exception:
+                db.rollback()
+    return items
 
 def create_stock(db: Session, stock: schemas.StockCreate):
     """
