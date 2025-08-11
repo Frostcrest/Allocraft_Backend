@@ -1,3 +1,11 @@
+"""
+Users Router
+
+Beginner guide:
+- Admin-only endpoints for listing and managing users.
+- Use /auth/register or /users (admin) to create accounts.
+"""
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app import schemas, crud, models

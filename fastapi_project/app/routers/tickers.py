@@ -1,3 +1,10 @@
+"""
+Tickers Router
+
+Beginner guide:
+- Create and query ticker metadata. Creation may hit external APIs.
+"""
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app import schemas, crud

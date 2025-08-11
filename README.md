@@ -8,6 +8,21 @@ This is the **Allocraft Backend** – a FastAPI-based backend for managing portf
 
 ---
 
+## Quick Start (Windows)
+
+Fastest way to run everything locally (backend + frontend):
+
+1) From the repo root, double-click `start-dev.bat` (or run it in a terminal).
+2) Two terminals open automatically:
+  - Backend: FastAPI on http://127.0.0.1:8000
+  - Frontend: Vite on http://localhost:5173
+3) Local auth is disabled (DISABLE_AUTH=1) so you can click around freely.
+4) Drop CSVs into `Allocraft_Backend/fastapi_project/seed_drop` to auto-import on startup.
+
+Prefer manual steps? Follow the guide below.
+
+---
+
 ## Features
 
 - REST API for managing stocks, options, and wheel strategies
@@ -135,6 +150,8 @@ To quickly seed Wheels from your Wheel Tracker CSV exports without manual entry:
 - Start the API or run the seeder:
   - API startup automatically imports all `*.csv` from `SEED_DROP_DIR` (idempotent per file/cycle). If not set, it falls back to `fastapi_project/seed_drop`.
   - Or run once: `python -m app.seed_data`
+
+Tip: When using `start-dev.bat`, `DISABLE_AUTH=1` is set for local convenience.
 
 Notes:
 - The importer tolerates spreadsheet formulas and currency symbols.

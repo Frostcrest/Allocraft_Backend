@@ -1,3 +1,11 @@
+"""
+Stocks Router
+
+Beginner guide:
+- Basic CRUD and CSV import for stock positions (legacy model).
+- Some endpoints require auth or admin role; in local dev DISABLE_AUTH=1 bypasses this.
+"""
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from app import schemas, crud, models

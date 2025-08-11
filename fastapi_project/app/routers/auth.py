@@ -1,3 +1,12 @@
+"""
+Auth Router
+
+Beginner guide:
+- /auth/register creates a user (open); /auth/login returns a JWT for subsequent calls.
+- /auth/me returns the current user based on the Bearer token.
+- In local dev, DISABLE_AUTH=1 returns a fake admin user so you can test without logging in.
+"""
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from jose import JWTError, jwt

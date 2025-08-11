@@ -1,3 +1,14 @@
+"""
+Options Router
+
+Beginner guide:
+- Simple CRUD and CSV import for option contracts (legacy model).
+- For Wheel strategies, prefer the event-based endpoints in wheels.py.
+
+Common errors:
+- 404 if updating/deleting an option that doesn't exist.
+"""
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from app import schemas, crud, models
