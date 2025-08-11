@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 import os
 import requests
 import yfinance as yf
@@ -22,7 +22,7 @@ def fetch_latest_price(ticker: str) -> Optional[float]:
     Fetch the latest price for a stock using the Twelve Data API.
     Returns a float or None. Caches for PRICE_TTL.
     """
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     # Cache hit
     hit = _cache_prices_td.get(ticker)
     if hit and now - hit[1] < PRICE_TTL:
@@ -48,7 +48,7 @@ def fetch_yf_price(ticker: str) -> Optional[float]:
     Fetch the latest price for a stock using yfinance as a backup.
     Returns the price as a float, or None if not found.
     """
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     hit = _cache_prices_yf.get(ticker)
     if hit and now - hit[1] < PRICE_TTL:
         return hit[0]
@@ -91,7 +91,7 @@ def fetch_ticker_info(symbol: str) -> dict:
     Fetch detailed information about a ticker symbol using Twelve Data API.
     Returns a dictionary with ticker information. Caches for TICKER_INFO_TTL.
     """
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     hit = _cache_ticker_info.get(symbol)
     if hit and now - hit[1] < TICKER_INFO_TTL:
         return hit[0]

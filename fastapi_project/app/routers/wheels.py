@@ -270,7 +270,7 @@ def patch_lot(lot_id: int, payload: schemas.LotUpdate, db: Session = Depends(get
 
     Errors: 404 if not found
     """
-    updated = crud.update_lot(db, lot_id, schemas.LotBase(**{**(crud.get_lot(db, lot_id).__dict__ if crud.get_lot(db, lot_id) else {}), **payload.dict(exclude_unset=True)}))
+    updated = crud.update_lot(db, lot_id, schemas.LotBase(**{**(crud.get_lot(db, lot_id).__dict__ if crud.get_lot(db, lot_id) else {}), **payload.model_dump(exclude_unset=True)}))
     if not updated:
         raise HTTPException(status_code=404, detail="Lot not found")
     return updated
