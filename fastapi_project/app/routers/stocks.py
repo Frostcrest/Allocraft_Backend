@@ -18,9 +18,9 @@ from app.dependencies import require_authenticated_user, require_role
 router = APIRouter(prefix="/stocks", tags=["Stocks"])
 
 @router.get("/", response_model=list[schemas.StockRead])
-def read_stocks(db: Session = Depends(get_db), refresh_prices: bool = False):
-    """Get all stocks. Optionally refresh prices."""
-    return crud.get_stocks(db, refresh_prices=refresh_prices)
+def read_stocks(db: Session = Depends(get_db), refresh_prices: bool = False, skip: int = 0, limit: int = 1000):
+    """Get stocks with optional price refresh and pagination."""
+    return crud.get_stocks(db, refresh_prices=refresh_prices, skip=skip, limit=limit)
 
 @router.post("/", response_model=schemas.StockRead)
 def create_stock(
