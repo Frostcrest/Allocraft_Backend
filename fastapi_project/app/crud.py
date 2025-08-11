@@ -683,6 +683,7 @@ class LotAssembler:
 
         shares_buffer = 0
         created: List[models.Lot] = []
+        to_refresh_metrics: list[int] = []
 
         for e in events:
             et = e.event_type
@@ -695,13 +696,12 @@ class LotAssembler:
                     status="OPEN_UNCOVERED",
                 )
                 self.db.add(lot)
-                self.db.commit()
+                self.db.flush()
                 self.db.refresh(lot)
                 created.append(lot)
                 self.db.add(models.LotLink(lot_id=lot.id, linked_object_type="WHEEL_EVENT", linked_object_id=e.id, role="PUT_ASSIGNMENT"))
                 self.db.add(models.LotMetrics(lot_id=lot.id))
-                self.db.commit()
-                refresh_lot_metrics(self.db, lot.id)
+                to_refresh_metrics.append(lot.id)
             elif et == "BUY_SHARES":
                 shares_buffer += int(e.quantity_shares or 0)
                 while shares_buffer >= 100:
@@ -713,13 +713,12 @@ class LotAssembler:
                         status="OPEN_UNCOVERED",
                     )
                     self.db.add(lot)
-                    self.db.commit()
+                    self.db.flush()
                     self.db.refresh(lot)
                     created.append(lot)
                     self.db.add(models.LotLink(lot_id=lot.id, linked_object_type="WHEEL_EVENT", linked_object_id=e.id, role="STOCK_BUY"))
                     self.db.add(models.LotMetrics(lot_id=lot.id))
-                    self.db.commit()
-                    refresh_lot_metrics(self.db, lot.id)
+                    to_refresh_metrics.append(lot.id)
                     shares_buffer -= 100
             elif et == "SELL_CALL_OPEN":
                 # bind to oldest open_uncovered lot
@@ -732,8 +731,7 @@ class LotAssembler:
                 if open_lot:
                     self.db.add(models.LotLink(lot_id=open_lot.id, linked_object_type="WHEEL_EVENT", linked_object_id=e.id, role="CALL_OPEN"))
                     open_lot.status = "OPEN_COVERED"
-                    self.db.commit()
-                    refresh_lot_metrics(self.db, open_lot.id)
+                    to_refresh_metrics.append(open_lot.id)
             elif et == "SELL_CALL_CLOSE":
                 covered_lot = (
                     self.db.query(models.Lot)
@@ -744,8 +742,7 @@ class LotAssembler:
                 if covered_lot:
                     self.db.add(models.LotLink(lot_id=covered_lot.id, linked_object_type="WHEEL_EVENT", linked_object_id=e.id, role="CALL_CLOSE"))
                     covered_lot.status = "OPEN_UNCOVERED"
-                    self.db.commit()
-                    refresh_lot_metrics(self.db, covered_lot.id)
+                    to_refresh_metrics.append(covered_lot.id)
             elif et == "CALLED_AWAY":
                 covered_lot = (
                     self.db.query(models.Lot)
@@ -756,9 +753,18 @@ class LotAssembler:
                 if covered_lot:
                     self.db.add(models.LotLink(lot_id=covered_lot.id, linked_object_type="WHEEL_EVENT", linked_object_id=e.id, role="CALL_ASSIGNMENT"))
                     covered_lot.status = "CLOSED_CALLED_AWAY"
-                    self.db.commit()
-                    refresh_lot_metrics(self.db, covered_lot.id)
+                    to_refresh_metrics.append(covered_lot.id)
 
+        # Single commit for all changes
+        self.db.commit()
+
+        # Refresh metrics post-commit in a stable state
+        for lot_id in to_refresh_metrics:
+            try:
+                refresh_lot_metrics(self.db, lot_id)
+            except Exception:
+                # Don’t fail the entire rebuild on a single metrics issue
+                pass
         return created
 
 

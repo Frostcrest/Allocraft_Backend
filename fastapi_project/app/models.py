@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, Index, UniqueConstraint
 from datetime import datetime
 from .database import Base
 
@@ -30,7 +30,7 @@ class Ticker(Base):
     __tablename__ = "tickers"
 
     id = Column(Integer, primary_key=True, index=True)  # Unique ID for each ticker
-    symbol = Column(String, index=True)                 # Ticker symbol (e.g., "AAPL")
+    symbol = Column(String, unique=True, index=True)    # Ticker symbol (e.g., "AAPL"), unique for integrity
     name = Column(String, nullable=True)                # Company name (optional)
     last_price = Column(String, nullable=True)          # Last known price (as string)
     change = Column(String, nullable=True)              # Price change (as string)
@@ -97,7 +97,7 @@ class WheelCycle(Base):
     __tablename__ = "wheel_cycles"
 
     id = Column(Integer, primary_key=True, index=True)
-    cycle_key = Column(String, index=True)  # e.g., "AAPL-1"
+    cycle_key = Column(String, unique=True, index=True)  # e.g., "AAPL-1" must be unique
     ticker = Column(String, index=True)
     started_at = Column(String, nullable=True)  # ISO date string
     status = Column(String, default="Open")  # Open/Closed
@@ -129,6 +129,11 @@ class WheelEvent(Base):
     link_event_id = Column(Integer, ForeignKey("wheel_events.id"), nullable=True)
     notes = Column(String, nullable=True)
 
+    # Composite index to accelerate common queries/sorts
+    __table_args__ = (
+        Index("ix_wheel_events_cycle_date_id", "cycle_id", "trade_date", "id"),
+    )
+
 
 class Lot(Base):
     """Represents a 100-share lot within a wheel cycle."""
@@ -144,6 +149,10 @@ class Lot(Base):
     cost_basis_effective = Column(Float, nullable=True)
     notes = Column(String, nullable=True)
 
+    __table_args__ = (
+        Index("ix_lots_cycle_status", "cycle_id", "status"),
+    )
+
 
 class LotLink(Base):
     """Links a lot to source events/trades to preserve audit trail."""
@@ -154,6 +163,10 @@ class LotLink(Base):
     linked_object_type = Column(String, index=True)  # e.g., WHEEL_EVENT
     linked_object_id = Column(Integer, index=True)
     role = Column(String, index=True)  # PUT_SOLD, PUT_ASSIGNMENT, STOCK_BUY, CALL_OPEN, CALL_CLOSE, CALL_ASSIGNMENT, STOCK_SELL, FEE, ADJUSTMENT
+
+    __table_args__ = (
+        Index("ix_lot_links_lot_role", "lot_id", "role"),
+    )
 
 
 class LotMetrics(Base):
@@ -177,6 +190,10 @@ class Price(Base):
     price = Column(Float, nullable=False)                   # Price value
     ticker_id = Column(Integer, ForeignKey("tickers.id"), nullable=False) # Associated ticker ID
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False) # When the price was recorded
+
+    __table_args__ = (
+        Index("ix_prices_ticker_time", "ticker_id", "timestamp"),
+    )
 
 class User(Base):
     """
