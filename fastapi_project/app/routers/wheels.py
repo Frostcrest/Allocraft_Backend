@@ -129,6 +129,28 @@ async def upload_wheels_csv(file: UploadFile = File(...), db: Session = Depends(
     db.commit()
     return {"created": len(created)}
 
+@router.get("/summary")
+def wheels_summary(db: Session = Depends(get_db)):
+    """Return a lightweight summary for dashboard cards: number of open cycles and total collateral approximation.
+
+    Collateral approximation: sum over open SELL_PUT_OPEN events' contracts*strike*100 minus any linked closes.
+    For now, we compute a naive upper bound: all open SELL_PUT_OPEN in open cycles.
+    """
+    open_cycles = db.query(models.WheelCycle).filter(models.WheelCycle.status == "Open").all()
+    cycle_ids = [c.id for c in open_cycles]
+    total_collateral = 0.0
+    if cycle_ids:
+        open_puts = (
+            db.query(models.WheelEvent)
+            .filter(models.WheelEvent.cycle_id.in_(cycle_ids))
+            .filter(models.WheelEvent.event_type == "SELL_PUT_OPEN")
+            .all()
+        )
+        for e in open_puts:
+            if e.contracts and e.strike:
+                total_collateral += float(e.contracts) * float(e.strike) * 100.0
+    return {"open_cycles": len(open_cycles), "total_collateral": total_collateral}
+
 
 # --- Event-based Wheel endpoints ---
 

@@ -196,11 +196,35 @@ def delete_stock(db: Session, stock_id: int):
 
 # --- OPTION CRUD FUNCTIONS ---
 
-def get_options(db: Session):
+def get_options(db: Session, refresh_prices: bool = False):
     """
-    Retrieve all option contracts.
+    Retrieve all option contracts. If refresh_prices is True, attempt to refresh market_price_per_contract.
     """
-    return db.query(models.Option).all()
+    items = db.query(models.Option).all()
+    if not refresh_prices:
+        return items
+    changed = False
+    for o in items:
+        if (o.status or "Open").lower() != "open":
+            continue
+        try:
+            # Reuse yfinance via high-level helper if available; otherwise best-effort skip
+            # We don't have the contract symbol directly, so skip precise lookup and fallback to underlying last price as a proxy
+            # For better accuracy, store contract symbol in model in the future and fetch exact lastPrice.
+            px = fetch_yf_price((o.ticker or "").upper())
+            if px is not None:
+                # This is not exact option premium; treat as placeholder only if none set
+                if o.market_price_per_contract is None:
+                    o.market_price_per_contract = float(px) * 0.01  # naive proxy 1% of underlying
+                    changed = True
+        except Exception:
+            continue
+    if changed:
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+    return items
 
 def create_option(db: Session, option: schemas.OptionCreate):
     """

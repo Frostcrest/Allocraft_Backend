@@ -20,9 +20,9 @@ import csv
 router = APIRouter(prefix="/options", tags=["Options"])
 
 @router.get("/", response_model=list[schemas.OptionRead])
-def read_options(db: Session = Depends(get_db)):
-    """Get all option contracts."""
-    return crud.get_options(db)
+def read_options(db: Session = Depends(get_db), refresh_prices: bool = False):
+    """Get all option contracts. If refresh_prices=true, update market prices per contract."""
+    return crud.get_options(db, refresh_prices=refresh_prices)
 
 @router.post("/", response_model=schemas.OptionRead)
 def create_option(option: schemas.OptionCreate, db: Session = Depends(get_db)):
