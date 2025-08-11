@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 import yfinance as yf
 from pathlib import Path
+from typing import Optional
 
 # Load environment variables from a .env file (if present)
 load_dotenv()
@@ -80,7 +81,7 @@ def _ensure_default_admin():
 _ensure_default_admin()
 
 # --- Routers ---
-from app.routers import stocks, options, wheels, tickers, auth, users  # noqa: E402
+from app.routers import stocks, options, wheels, tickers, auth, users, importer  # noqa: E402
 
 app.include_router(auth.router)
 app.include_router(stocks.router)
@@ -88,6 +89,7 @@ app.include_router(options.router)
 app.include_router(wheels.router)
 app.include_router(tickers.router)
 app.include_router(users.router)
+app.include_router(importer.router)
 
 
 # --- Expiry helper endpoints for local UI compatibility ---
@@ -122,3 +124,37 @@ def get_wheel_expiries(ticker: str):
         return expiries
     except Exception:
         return []
+
+# --- Optional: Seed-drop CSV importer on startup ---
+from fastapi import BackgroundTasks
+from app.database import SessionLocal
+
+def _import_seed_drop_folder(folder: Optional[str]):
+    if not folder:
+        return
+    try:
+        basedir = Path(folder)
+        if not basedir.exists() or not basedir.is_dir():
+            return
+        from app.importers.wheel_tracker import import_wheel_tracker_csv
+        db = SessionLocal()
+        try:
+            for csv_path in sorted(basedir.glob("*.csv")):
+                try:
+                    import_wheel_tracker_csv(db, str(csv_path))
+                except Exception:
+                    # continue on individual file errors
+                    continue
+        finally:
+            db.close()
+    except Exception:
+        # never fail startup on importer errors
+        pass
+
+seed_drop_dir = os.getenv("SEED_DROP_DIR")
+if not seed_drop_dir:
+    # default to a repo-local folder for convenience
+    seed_drop_dir = str((BASE_DIR.parent / "seed_drop").resolve())
+
+# Import synchronously during startup; folder-based and idempotent
+_import_seed_drop_folder(seed_drop_dir)

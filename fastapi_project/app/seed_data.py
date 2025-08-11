@@ -8,9 +8,12 @@ This script is idempotent: it only inserts data if the respective tables are emp
 """
 
 from sqlalchemy.orm import Session
+from pathlib import Path
+import os
 
 from .database import Base, engine, SessionLocal
 from . import models
+from .importers.wheel_tracker import import_wheel_tracker_csv
 
 
 def seed_stocks(db: Session) -> int:
@@ -288,7 +291,24 @@ def main() -> None:
         w_count = seed_wheels(db)
         r_count = seed_wheel_cycle_rigetti(db)
         b_count = seed_wheel_cycle_bigbear(db)
-        print(f"Seed complete: stocks={s_count}, options={o_count}, wheels={w_count}, rigetti_events={r_count}, bbai_events={b_count}")
+
+        # Optional: import any CSVs in SEED_DROP_DIR
+        drop_dir = os.getenv("SEED_DROP_DIR")
+        imported = []
+        if drop_dir and Path(drop_dir).exists():
+            for csv_file in sorted(Path(drop_dir).glob("*.csv")):
+                try:
+                    summary = import_wheel_tracker_csv(db, str(csv_file))
+                    imported.append((csv_file.name, summary))
+                except Exception:
+                    continue
+
+        print(
+            "Seed complete: "
+            f"stocks={s_count}, options={o_count}, wheels={w_count}, "
+            f"rigetti_events={r_count}, bbai_events={b_count}, "
+            f"csv_imports={len(imported)}"
+        )
     finally:
         db.close()
 

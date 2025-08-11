@@ -124,6 +124,23 @@ python -m uvicorn app.main:app --reload
 - The backend uses the [Twelve Data API](https://twelvedata.com/) and yfinance for ticker and price info.
 - For any issues, check the FastAPI logs in your terminal.
 
+### Seed-drop CSV imports (optional)
+
+To quickly seed Wheels from your Wheel Tracker CSV exports without manual entry:
+
+- Place your CSV files (e.g., `GOOG.csv`, `BBAI.csv`, `HIMS.csv`) in a folder.
+- Add `SEED_DROP_DIR` to your `.env`, pointing to that folder path.
+  - Windows example: `SEED_DROP_DIR=C:\\Users\\you\\Downloads\\allocraft_seed`
+  - macOS/Linux: `SEED_DROP_DIR=/Users/you/allocraft_seed`
+- Start the API or run the seeder:
+  - API startup automatically imports all `*.csv` from `SEED_DROP_DIR` (idempotent per file/cycle). If not set, it falls back to `fastapi_project/seed_drop`.
+  - Or run once: `python -m app.seed_data`
+
+Notes:
+- The importer tolerates spreadsheet formulas and currency symbols.
+- It creates a WheelCycle per file (cycle_key defaults to the filename) and then rebuilds lots.
+- Re-running with the same files won’t duplicate events when the cycle already has events.
+
 ---
 
 **Allocraft Backend**  
