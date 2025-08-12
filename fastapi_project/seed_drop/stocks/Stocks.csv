@@ -1,0 +1,13 @@
+Ticker,Shares,Basis,Cost,Price,Market Value,Thesis,ROI ($),ROI (%)
+ABBV,5,193.25,=C2*B2,"=IFERROR(__xludf.dummyfunction(""googlefinance(A2,""""price"""")""),198.05)",=E2*B2,,=F2-D2,=(F2-D2)/D2
+AMZN,31,222.18,=C3*B3,"=IFERROR(__xludf.dummyfunction(""googlefinance(A3,""""price"""")""),222.69)",=E3*B3,,=F3-D3,=(F3-D3)/D3
+ASML,1,725.91,=C4*B4,"=IFERROR(__xludf.dummyfunction(""googlefinance(A4,""""price"""")""),722.32)",=E4*B4,,=F4-D4,=(F4-D4)/D4
+COST,7,1000,=C5*B5,"=IFERROR(__xludf.dummyfunction(""googlefinance(A5,""""price"""")""),980.98)",=E5*B5,Defensive position,=F5-D5,=(F5-D5)/D5
+GLDM,5,65.46,=C6*B6,"=IFERROR(__xludf.dummyfunction(""googlefinance(A6,""""price"""")""),67.3)",=E6*B6,Defensive position,=F6-D6,=(F6-D6)/D6
+GOOG,120,175.17,=C7*B7,"=IFERROR(__xludf.dummyfunction(""googlefinance(A7,""""price"""")""),202.16)",=E7*B7,Growth position,=F7-D7,=(F7-D7)/D7
+HIMS,9,50.49,=C8*B8,"=IFERROR(__xludf.dummyfunction(""googlefinance(A8,""""price"""")""),51.94)",=E8*B8,Growth position,=F8-D8,=(F8-D8)/D8
+QQQM,12,226.2,=C9*B9,"=IFERROR(__xludf.dummyfunction(""googlefinance(A9,""""price"""")""),236.52)",=E9*B9,Low-cost QQQ alternative,=F9-D9,=(F9-D9)/D9
+QUBT,8,19.65,=C10*B10,"=IFERROR(__xludf.dummyfunction(""googlefinance(A10,""""price"""")""),16.13)",=E10*B10,,=F10-D10,=(F10-D10)/D10
+RIVN,18,12.38,=C11*B11,"=IFERROR(__xludf.dummyfunction(""googlefinance(A11,""""price"""")""),11.79)",=E11*B11,,=F11-D11,=(F11-D11)/D11
+VOO,10,560.19,=C12*B12,"=IFERROR(__xludf.dummyfunction(""googlefinance(A12,""""price"""")""),585.74)",=E12*B12,Low-cost SPY alternative,=F12-D12,=(F12-D12)/D12
+Total,,,=SUM(Table1[Cost]),,=SUM(Table1[Market Value]),,=SUM(Table1[ROI ($)]),=(F13-D13)/D13

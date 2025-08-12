@@ -33,8 +33,10 @@ app = FastAPI(
 )
 
 # --- CORS configuration ---
-frontend_origins = os.getenv("FRONTEND_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
+frontend_origins = os.getenv("FRONTEND_ORIGINS", "")
 allow_origins = [o.strip() for o in frontend_origins.split(",") if o.strip()]
+if not allow_origins:
+    allow_origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
 app.add_middleware(
     CORSMiddleware,
@@ -147,19 +149,38 @@ def _import_seed_drop_folder(folder: Optional[str]):
         basedir = Path(folder)
         if not basedir.exists() or not basedir.is_dir():
             return
-        from app.importers.wheel_tracker import import_wheel_tracker_csv
         db = SessionLocal()
         try:
-            for csv_path in sorted(basedir.glob("*.csv")):
-                try:
-                    import_wheel_tracker_csv(db, str(csv_path))
-                except Exception:
-                    # continue on individual file errors
-                    continue
+            # Wheels: only scan wheels subfolder
+            wheels_dir = basedir / "wheels"
+            if wheels_dir.exists() and wheels_dir.is_dir():
+                from app.importers.wheel_tracker import import_wheel_tracker_csv
+                for csv_path in sorted(wheels_dir.glob("*.csv")):
+                    try:
+                        import_wheel_tracker_csv(db, str(csv_path))
+                    except Exception:
+                        continue
+            # Stocks: scan stocks subfolder
+            stocks_dir = basedir / "stocks"
+            if stocks_dir.exists() and stocks_dir.is_dir():
+                from app.importers.stock_importer import import_stock_csv
+                for csv_path in sorted(stocks_dir.glob("*.csv")):
+                    try:
+                        import_stock_csv(db, str(csv_path))
+                    except Exception:
+                        continue
+            # Options: scan options subfolder
+            options_dir = basedir / "options"
+            if options_dir.exists() and options_dir.is_dir():
+                from app.importers.option_importer import import_option_csv
+                for csv_path in sorted(options_dir.glob("*.csv")):
+                    try:
+                        import_option_csv(db, str(csv_path))
+                    except Exception:
+                        continue
         finally:
             db.close()
     except Exception:
-        # never fail startup on importer errors
         pass
 
 seed_drop_dir = os.getenv("SEED_DROP_DIR")

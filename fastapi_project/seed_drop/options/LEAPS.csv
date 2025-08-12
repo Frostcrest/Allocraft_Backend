@@ -1,0 +1,4 @@
+Ticker,Contracts,Basis,Cost,Price,Market Value,Stop Loss,Stop Limit,Safe Money,Safe %,Thesis,ROI ($),ROI (%)
+GOOG 180C Jan 16,2,1820,=C2*B2,3090,=E2*B2,,,=H2*B2*100,=I2/F2,,=F2-D2,=(F2-D2)/D2
+AMZN 215C Jan 16,2,1789,=C3*B3,2315,=E3*B3,,,=H3*B3*100,=I3/F3,,=F3-D3,
+Total,,,=SUM(Table1_2[Cost]),,=SUM(Table1_2[Market Value]),,,=SUM(Table1_2[Safe Money]),=I4/F4,,=SUM(Table1_2[ROI ($)]),=(F4-D4)/D4
