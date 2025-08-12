@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Optional, Literal
 from datetime import date, datetime
 
@@ -15,6 +15,16 @@ class StockBase(BaseModel):
     entry_date: Optional[date] = Field(None, description="Date position was opened")
     current_price: Optional[float] = Field(None, description="Latest fetched price")
     price_last_updated: Optional[datetime] = Field(None, description="Timestamp of last price update")
+
+    # Normalize empty strings coming from the DB (stored as TEXT) to None for date fields
+    @field_validator("entry_date", mode="before")
+    @classmethod
+    def _empty_date_to_none(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, str) and v.strip() == "":
+            return None
+        return v
 
 class StockCreate(StockBase):
     """Schema for creating a new stock position."""
@@ -59,12 +69,22 @@ class OptionBase(BaseModel):
     ticker: str = Field(..., description="Underlying stock ticker")
     option_type: Literal["Call", "Put"] = Field(..., description="Type of option contract")
     strike_price: float = Field(..., description="Strike price of the option")
-    expiry_date: date = Field(..., description="Option expiration date")
+    # Some legacy rows may have empty string in DB; accept None on read
+    expiry_date: Optional[date] = Field(None, description="Option expiration date")
     contracts: float = Field(..., description="Number of contracts")
     cost_basis: float = Field(..., description="Cost basis per contract")  # Cost per contract, not total
     market_price_per_contract: Optional[float] = Field(None, description="Current market price per contract")
     status: Literal["Open", "Closed"] = Field("Open", description="Contract status")
     current_price: Optional[float] = Field(None, description="Current price of the underlying")
+
+    @field_validator("expiry_date", mode="before")
+    @classmethod
+    def _empty_expiry_to_none(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, str) and v.strip() == "":
+            return None
+        return v
 
 class OptionCreate(OptionBase):
     """Schema for creating a new option contract."""
@@ -83,7 +103,7 @@ class OptionRead(OptionBase):
 class WheelStrategyBase(BaseModel):
     wheel_id: str
     ticker: str
-    trade_date: date
+    trade_date: Optional[date]
 
     # New fields for full wheel lifecycle
     sell_put_strike_price: Optional[float] = None
@@ -126,6 +146,15 @@ class WheelCycleBase(BaseModel):
     status: Literal["Open", "Closed"] = "Open"
     notes: Optional[str] = None
 
+    @field_validator("started_at", mode="before")
+    @classmethod
+    def _empty_started_at_to_none(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, str) and v.strip() == "":
+            return None
+        return v
+
 class WheelCycleCreate(WheelCycleBase):
     pass
 
@@ -143,6 +172,7 @@ class WheelEventBase(BaseModel):
         "SELL_SHARES",
         "SELL_PUT_OPEN",
         "SELL_PUT_CLOSE",
+    "BUY_PUT_CLOSE",
         "ASSIGNMENT",
         "SELL_CALL_OPEN",
         "SELL_CALL_CLOSE",
@@ -159,6 +189,15 @@ class WheelEventBase(BaseModel):
 
     link_event_id: Optional[int] = None
     notes: Optional[str] = None
+
+    @field_validator("trade_date", mode="before")
+    @classmethod
+    def _empty_trade_date_to_none(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, str) and v.strip() == "":
+            return None
+        return v
 
 class WheelEventCreate(WheelEventBase):
     pass

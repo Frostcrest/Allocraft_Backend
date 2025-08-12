@@ -496,7 +496,7 @@ def calculate_wheel_metrics(db: Session, cycle_id: int) -> schemas.WheelMetricsR
         elif e.event_type == "SELL_PUT_OPEN":
             # receive premium
             net_options_cashflow += (e.premium or 0) * contracts * 100 - fees
-        elif e.event_type == "SELL_PUT_CLOSE":
+        elif e.event_type in ("SELL_PUT_CLOSE", "BUY_PUT_CLOSE"):
             # pay to close (negative cashflow)
             net_options_cashflow -= (e.premium or 0) * contracts * 100 + fees
         elif e.event_type == "SELL_CALL_OPEN":
@@ -507,7 +507,7 @@ def calculate_wheel_metrics(db: Session, cycle_id: int) -> schemas.WheelMetricsR
     average_cost = (total_cost / shares_owned) if shares_owned else 0.0
     total_realized_pl = realized_stock_pl + net_options_cashflow
 
-    # Try to get current price: prefer yfinance, else last stored price or None
+    # Try to get current price: prefer yfinance, else Twelve Data (if configured), else last stored price or None
     current_price = None
     try:
         p = fetch_yf_price(cycle.ticker)
@@ -515,6 +515,13 @@ def calculate_wheel_metrics(db: Session, cycle_id: int) -> schemas.WheelMetricsR
             current_price = float(p)
     except Exception:
         current_price = None
+    if current_price is None:
+        try:
+            p2 = fetch_latest_price(cycle.ticker)
+            if p2 is not None:
+                current_price = float(p2)
+        except Exception:
+            pass
     if current_price is None:
         try:
             t = get_ticker_by_symbol(db, cycle.ticker)
@@ -672,6 +679,13 @@ def refresh_lot_metrics(db: Session, lot_id: int) -> schemas.LotMetricsRead:
                 current_price = float(p)
     except Exception:
         current_price = None
+    if current_price is None and lot.ticker:
+        try:
+            p2 = fetch_latest_price(lot.ticker)
+            if p2 is not None:
+                current_price = float(p2)
+        except Exception:
+            pass
     # If lot is closed, unrealized is zero
     if lot.status in ("CLOSED_CALLED_AWAY", "CLOSED_SOLD", "CLOSED_MERGED"):
         unrealized_pl = 0.0
