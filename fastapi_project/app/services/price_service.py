@@ -2,11 +2,9 @@ from datetime import datetime, timedelta, UTC
 import os
 import requests
 import yfinance as yf
-from twelvedata import TDClient
 from typing import Dict, Tuple, Optional
 
 TD_API_KEY = os.getenv("TWELVE_DATA_API_KEY", "")
-td = TDClient(apikey=TD_API_KEY) if TD_API_KEY else None
 
 # --- Simple in-memory caches (process-local) ---
 _cache_prices_td: Dict[str, Tuple[float, datetime]] = {}
@@ -88,18 +86,23 @@ def fetch_option_contract_price(ticker: str, expiry_date: str, option_type: str,
 
 def fetch_ticker_info(symbol: str) -> dict:
     """
-    Fetch detailed information about a ticker symbol using Twelve Data API.
+    Fetch detailed information about a ticker symbol using Twelve Data's HTTP API.
     Returns a dictionary with ticker information. Caches for TICKER_INFO_TTL.
+    Never raises; returns {} on failure or when no API key is configured.
     """
     now = datetime.now(UTC)
     hit = _cache_ticker_info.get(symbol)
     if hit and now - hit[1] < TICKER_INFO_TTL:
         return hit[0]
+    if not TD_API_KEY:
+        return {}
     try:
-        if not td:
-            return {}
-        data = td.quote(symbol=symbol).as_json()
-        if not data or "code" in data:
+        url = f"https://api.twelvedata.com/quote?symbol={symbol}&apikey={TD_API_KEY}"
+        resp = requests.get(url, timeout=6)
+        resp.raise_for_status()
+        data = resp.json() or {}
+        # Twelve Data returns { "code": ..., "message": ... } on errors
+        if not data or data.get("code") is not None:
             return {}
         info = {
             "symbol": data.get("symbol"),
