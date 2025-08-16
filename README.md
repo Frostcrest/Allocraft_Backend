@@ -124,6 +124,12 @@ python -m uvicorn app.main:app --reload
   python -m pip install -r requirements.txt; cd .\fastapi_project; python -m uvicorn app.main:app --reload
   ```
 
+  If you see `Could not find platform independent libraries <prefix>` repeatedly on Windows, ensure PYTHONHOME/PYTHONPATH aren’t set in your environment. In a PowerShell session, you can clear them for the current shell:
+
+  ```powershell
+  Remove-Item Env:PYTHONHOME -ErrorAction SilentlyContinue
+  Remove-Item Env:PYTHONPATH -ErrorAction SilentlyContinue
+  ```
 
 ## Example API Usage
 
