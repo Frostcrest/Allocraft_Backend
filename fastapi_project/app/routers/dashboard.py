@@ -24,17 +24,17 @@ def snapshot(db: Session = Depends(get_db)) -> Dict[str, Any]:
     stocks = get_stocks(db, refresh_prices=True, limit=10000)
     options = get_options(db, refresh_prices=True)
 
-    # Stocks metrics
+    # Stocks metrics (value from current prices only; no fallback to cost basis)
     open_stocks = [s for s in stocks if (s.status or "Open").lower() == "open"]
     stocks_total_value = 0.0
     stocks_invested_basis = 0.0
     for s in open_stocks:
-        price = s.current_price if s.current_price is not None else (s.cost_basis or 0.0)
+        price = s.current_price if s.current_price is not None else 0.0
         shares = float(s.shares or 0)
         stocks_total_value += shares * float(price or 0.0)
         stocks_invested_basis += shares * float(s.cost_basis or 0.0)
 
-    # Options metrics
+    # Options metrics (value from current/market prices only; no fallback to cost basis)
     open_options = [o for o in options if (o.status or "Open").lower() == "open"]
     options_total_value = 0.0
     options_invested_basis = 0.0
@@ -52,7 +52,7 @@ def snapshot(db: Session = Depends(get_db)) -> Dict[str, Any]:
                 )
         except Exception:
             precise_px = None
-        px = precise_px if precise_px is not None else (o.market_price_per_contract if o.market_price_per_contract is not None else (o.cost_basis or 0.0))
+        px = precise_px if precise_px is not None else (o.market_price_per_contract if o.market_price_per_contract is not None else 0.0)
         options_total_value += contracts * float(px or 0.0) * 100.0
         options_invested_basis += contracts * float(o.cost_basis or 0.0) * 100.0
 
