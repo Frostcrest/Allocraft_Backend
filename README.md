@@ -52,8 +52,7 @@ Open **Command Prompt** and run:
 
 ```sh
 git clone <your-repo-url>
-cd Allocraft_Backend\Allocraft_Backend
-```
+cd Allocraft_Backend\
 
 ### 3. Create a Virtual Environment (Recommended)
 
