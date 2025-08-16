@@ -648,6 +648,8 @@ def refresh_lot_metrics(db: Session, lot_id: int) -> schemas.LotMetricsRead:
     fees_total = 0.0
     realized_pl = 0.0
 
+    # Track shares to infer coverage status
+    shares_remaining = 0
     for e in events:
         fees = e.fees or 0.0
         fees_total += fees
@@ -660,9 +662,11 @@ def refresh_lot_metrics(db: Session, lot_id: int) -> schemas.LotMetricsRead:
             net_premiums -= (e.premium or 0) * contracts * 100
         elif et in ("BUY_SHARES", "ASSIGNMENT"):
             stock_cost_total += (e.price or e.strike or 0) * qty
+            shares_remaining += qty
         elif et in ("SELL_SHARES", "CALLED_AWAY"):
             # realized component relative to effective basis calculated later; here treat as stock proceeds
             stock_cost_total -= (e.price or e.strike or 0) * qty
+            shares_remaining -= qty
 
     # Effective cost basis per lot (100 shares)
     cost_basis_effective = None
@@ -672,6 +676,20 @@ def refresh_lot_metrics(db: Session, lot_id: int) -> schemas.LotMetricsRead:
         cost_basis_effective = None
 
     lot.cost_basis_effective = cost_basis_effective
+    # Auto-fix coverage status: if shares < 100, lot cannot be covered
+    try:
+        if shares_remaining < 100 and lot.status == "OPEN_COVERED":
+            lot.status = "OPEN_UNCOVERED"
+        # If exactly zero and there was a CALLED_AWAY event, prefer closed_called_away; otherwise leave as uncovered
+        if shares_remaining <= 0:
+            if any(e.event_type == "CALLED_AWAY" for e in events):
+                lot.status = "CLOSED_CALLED_AWAY"
+            else:
+                # Keep uncovered per product requirement rather than auto-closing as SOLD
+                if lot.status not in ("CLOSED_CALLED_AWAY", "CLOSED_SOLD"):
+                    lot.status = "OPEN_UNCOVERED"
+    except Exception:
+        pass
     db.commit()
 
     # Unrealized P/L estimate (stock-only)
@@ -788,6 +806,60 @@ class LotAssembler:
                     self.db.add(models.LotMetrics(lot_id=lot.id))
                     to_refresh_metrics.append(lot.id)
                     shares_buffer -= 100
+            elif et == "SELL_SHARES":
+                # If user sold shares, first uncover covered lots (removing coverage),
+                # then close uncovered lots if more 100-share chunks were sold.
+                qty = int(e.quantity_shares or 0)
+                # consume covered lots -> uncovered
+                while qty >= 100:
+                    covered_lot = (
+                        self.db.query(models.Lot)
+                        .filter(models.Lot.cycle_id == cycle_id, models.Lot.status == "OPEN_COVERED")
+                        .order_by(models.Lot.id.asc())
+                        .first()
+                    )
+                    if not covered_lot:
+                        break
+                    self.db.add(models.LotLink(lot_id=covered_lot.id, linked_object_type="WHEEL_EVENT", linked_object_id=e.id, role="STOCK_SELL"))
+                    covered_lot.status = "OPEN_UNCOVERED"
+                    to_refresh_metrics.append(covered_lot.id)
+                    qty -= 100
+                # if still selling more, close open-uncovered lots as SOLD
+                while qty >= 100:
+                    open_lot = (
+                        self.db.query(models.Lot)
+                        .filter(models.Lot.cycle_id == cycle_id, models.Lot.status == "OPEN_UNCOVERED")
+                        .order_by(models.Lot.id.asc())
+                        .first()
+                    )
+                    if not open_lot:
+                        break
+                    self.db.add(models.LotLink(lot_id=open_lot.id, linked_object_type="WHEEL_EVENT", linked_object_id=e.id, role="STOCK_SELL"))
+                    open_lot.status = "CLOSED_SOLD"
+                    to_refresh_metrics.append(open_lot.id)
+                    qty -= 100
+                # Remainder < 100 shares sold: uncover one covered lot or record partial sell on an open lot
+                if qty > 0:
+                    covered_lot = (
+                        self.db.query(models.Lot)
+                        .filter(models.Lot.cycle_id == cycle_id, models.Lot.status == "OPEN_COVERED")
+                        .order_by(models.Lot.id.asc())
+                        .first()
+                    )
+                    if covered_lot:
+                        self.db.add(models.LotLink(lot_id=covered_lot.id, linked_object_type="WHEEL_EVENT", linked_object_id=e.id, role="STOCK_SELL"))
+                        covered_lot.status = "OPEN_UNCOVERED"
+                        to_refresh_metrics.append(covered_lot.id)
+                    else:
+                        open_lot = (
+                            self.db.query(models.Lot)
+                            .filter(models.Lot.cycle_id == cycle_id, models.Lot.status == "OPEN_UNCOVERED")
+                            .order_by(models.Lot.id.asc())
+                            .first()
+                        )
+                        if open_lot:
+                            self.db.add(models.LotLink(lot_id=open_lot.id, linked_object_type="WHEEL_EVENT", linked_object_id=e.id, role="STOCK_SELL"))
+                            to_refresh_metrics.append(open_lot.id)
             elif et == "SELL_CALL_OPEN":
                 # bind to oldest open_uncovered lot
                 open_lot = (
@@ -812,16 +884,34 @@ class LotAssembler:
                     covered_lot.status = "OPEN_UNCOVERED"
                     to_refresh_metrics.append(covered_lot.id)
             elif et == "CALLED_AWAY":
-                covered_lot = (
+                # Prefer closing a covered lot; if none, close an uncovered lot that previously had a call open linked.
+                lot_to_close = (
                     self.db.query(models.Lot)
                     .filter(models.Lot.cycle_id == cycle_id, models.Lot.status == "OPEN_COVERED")
                     .order_by(models.Lot.id.asc())
                     .first()
                 )
-                if covered_lot:
-                    self.db.add(models.LotLink(lot_id=covered_lot.id, linked_object_type="WHEEL_EVENT", linked_object_id=e.id, role="CALL_ASSIGNMENT"))
-                    covered_lot.status = "CLOSED_CALLED_AWAY"
-                    to_refresh_metrics.append(covered_lot.id)
+                if not lot_to_close:
+                    # find an open uncovered lot that has a CALL_OPEN link lingering (e.g., after a manual unbind/roll)
+                    candidate = (
+                        self.db.query(models.Lot)
+                        .filter(models.Lot.cycle_id == cycle_id)
+                        .order_by(models.Lot.id.asc())
+                        .all()
+                    )
+                    for l in candidate:
+                        link = (
+                            self.db.query(models.LotLink)
+                            .filter(models.LotLink.lot_id == l.id, models.LotLink.role == "CALL_OPEN")
+                            .first()
+                        )
+                        if link and l.status in ("OPEN_UNCOVERED", "OPEN_COVERED"):
+                            lot_to_close = l
+                            break
+                if lot_to_close:
+                    self.db.add(models.LotLink(lot_id=lot_to_close.id, linked_object_type="WHEEL_EVENT", linked_object_id=e.id, role="CALL_ASSIGNMENT"))
+                    lot_to_close.status = "CLOSED_CALLED_AWAY"
+                    to_refresh_metrics.append(lot_to_close.id)
 
         # Single commit for all changes
         self.db.commit()
