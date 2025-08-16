@@ -78,7 +78,7 @@ TWELVE_DATA_API_KEY=
 Install required Python packages (includes extras used by the app):
 
 ```powershell
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
 ### 6. Run the Backend Server
@@ -100,6 +100,30 @@ python -m uvicorn app.main:app --reload
 - Alternative docs: [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
 
 ---
+
+## Troubleshooting (Windows)
+
+- If you see `ModuleNotFoundError: No module named 'app'`, run Uvicorn from the `fastapi_project` folder or use the fully qualified module path from the repo root:
+
+  - Option A (recommended):
+
+    ```powershell
+    cd .\Allocraft_Backend\fastapi_project\
+    python -m uvicorn app.main:app --reload
+    ```
+
+  - Option B (from repo root):
+
+    ```powershell
+    python -m uvicorn fastapi_project.app.main:app --reload
+    ```
+
+- When chaining commands in PowerShell, separate them with `;`. Example one-liner to install, change directory, and run:
+
+  ```powershell
+  python -m pip install -r requirements.txt; cd .\fastapi_project; python -m uvicorn app.main:app --reload
+  ```
+
 
 ## Example API Usage
 

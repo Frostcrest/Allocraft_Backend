@@ -12,9 +12,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from app.database import Base, engine, SessionLocal
+from .database import Base, engine, SessionLocal
 # Import models before calling create_all to ensure all tables are registered
-from app import models  # noqa: F401
+from . import models  # noqa: F401
 import os
 from dotenv import load_dotenv
 from datetime import datetime, UTC
@@ -76,8 +76,8 @@ def _ensure_default_admin():
     Intended for development; safe no-op if the user already exists.
     """
     try:
-        from app.models import User  # local import to avoid circulars at module import
-        from app.utils.security import hash_password
+        from .models import User  # local import to avoid circulars at module import
+        from .utils.security import hash_password
         db = SessionLocal()
         try:
             existing = db.query(User).filter(User.username == "admin").first()
@@ -100,7 +100,7 @@ def _ensure_default_admin():
 _ensure_default_admin()
 
 # --- Routers ---
-from app.routers import stocks, options, wheels, tickers, auth, users, importer, dashboard  # noqa: E402
+from .routers import stocks, options, wheels, tickers, auth, users, importer, dashboard  # noqa: E402
 
 app.include_router(auth.router)
 app.include_router(stocks.router)
@@ -147,7 +147,7 @@ def get_wheel_expiries(ticker: str):
 
 # --- Optional: Seed-drop CSV importer on startup ---
 from fastapi import BackgroundTasks
-from app.database import SessionLocal
+from .database import SessionLocal
 
 def _import_seed_drop_folder(folder: Optional[str]):
     if not folder:
@@ -161,7 +161,7 @@ def _import_seed_drop_folder(folder: Optional[str]):
             # Wheels: only scan wheels subfolder
             wheels_dir = basedir / "wheels"
             if wheels_dir.exists() and wheels_dir.is_dir():
-                from app.importers.wheel_tracker import import_wheel_tracker_csv
+                from .importers.wheel_tracker import import_wheel_tracker_csv
                 for csv_path in sorted(wheels_dir.glob("*.csv")):
                     try:
                         import_wheel_tracker_csv(db, str(csv_path))
@@ -170,7 +170,7 @@ def _import_seed_drop_folder(folder: Optional[str]):
             # Stocks: scan stocks subfolder
             stocks_dir = basedir / "stocks"
             if stocks_dir.exists() and stocks_dir.is_dir():
-                from app.importers.stock_importer import import_stock_csv
+                from .importers.stock_importer import import_stock_csv
                 for csv_path in sorted(stocks_dir.glob("*.csv")):
                     try:
                         import_stock_csv(db, str(csv_path))
@@ -179,7 +179,7 @@ def _import_seed_drop_folder(folder: Optional[str]):
             # Options: scan options subfolder
             options_dir = basedir / "options"
             if options_dir.exists() and options_dir.is_dir():
-                from app.importers.option_importer import import_option_csv
+                from .importers.option_importer import import_option_csv
                 for csv_path in sorted(options_dir.glob("*.csv")):
                     try:
                         import_option_csv(db, str(csv_path))

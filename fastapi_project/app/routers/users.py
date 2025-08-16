@@ -8,9 +8,9 @@ Beginner guide:
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from app import schemas, crud, models
-from app.database import get_db
-from app.dependencies import require_role
+from .. import schemas, crud, models
+from ..database import get_db
+from ..dependencies import require_role
 
 router = APIRouter(prefix="/users", tags=["Users"])
 

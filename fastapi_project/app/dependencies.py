@@ -7,8 +7,8 @@ Beginner guide:
 """
 
 from fastapi import Depends, HTTPException, status
-from app.routers.auth import get_current_user
-from app import models
+from .routers.auth import get_current_user
+from . import models
 import os
 from dotenv import load_dotenv
 

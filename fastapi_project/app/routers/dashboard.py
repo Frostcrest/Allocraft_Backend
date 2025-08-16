@@ -10,10 +10,10 @@ from sqlalchemy.orm import Session
 from datetime import datetime, UTC
 from typing import Dict, Any
 
-from app.database import get_db
-from app import models
-from app.crud import get_stocks, get_options
-from app.services.price_service import fetch_option_contract_price
+from ..database import get_db
+from .. import models
+from ..crud import get_stocks, get_options
+from ..services.price_service import fetch_option_contract_price
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 

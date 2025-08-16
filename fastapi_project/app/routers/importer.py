@@ -4,9 +4,9 @@ from typing import Any, Dict
 import os
 from pathlib import Path
 
-from app.database import get_db
-from app.dependencies import require_role
-from app.importers.wheel_tracker import import_wheel_tracker_bytes
+from ..database import get_db
+from ..dependencies import require_role
+from ..importers.wheel_tracker import import_wheel_tracker_bytes
 
 router = APIRouter(prefix="/importer", tags=["Importer"])
 
@@ -47,13 +47,13 @@ def scan_seed_folder(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """
     folder = os.getenv("SEED_DROP_DIR")
     if not folder:
-        from app.main import BASE_DIR  # avoid circulars
+        from ..main import BASE_DIR  # avoid circulars
         folder = str((BASE_DIR.parent / "seed_drop").resolve())
     p = Path(folder)
     if not p.exists() or not p.is_dir():
         raise HTTPException(status_code=404, detail=f"Seed folder not found: {folder}")
     results = []
-    from app.importers.wheel_tracker import import_wheel_tracker_csv
+    from ..importers.wheel_tracker import import_wheel_tracker_csv
     for csv_path in sorted(p.glob("*.csv")):
         try:
             summary = import_wheel_tracker_csv(db, str(csv_path))

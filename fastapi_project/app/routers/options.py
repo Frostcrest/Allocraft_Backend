@@ -11,8 +11,8 @@ Common errors:
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
-from app import schemas, crud, models
-from app.database import get_db
+from .. import schemas, crud, models
+from ..database import get_db
 from fastapi.responses import StreamingResponse
 import io
 import csv
