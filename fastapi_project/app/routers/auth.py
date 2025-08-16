@@ -57,7 +57,8 @@ def _ensure_admin_for_frostcrest(user: models.User) -> models.User:
 def get_current_user(token: str | None = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> models.User:
     if DISABLE_AUTH:
         # Return a faux active admin user for local development/testing
-        return models.User(username="local", email="local@example.com", hashed_password="", is_active=True, roles="admin")
+        # Ensure a concrete id is present to satisfy response_model validation
+        return models.User(id=0, username="local", email="local@example.com", hashed_password="", is_active=True, roles="admin")
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
