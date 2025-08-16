@@ -145,7 +145,12 @@ def get_stocks(db: Session, refresh_prices: bool = False, skip: int = 0, limit: 
         for s in items:
             if (s.status or "Open").lower() == "open":
                 try:
-                    price = fetch_yf_price((s.ticker or "").upper())
+                    symbol = (s.ticker or "").strip().upper()
+                    # Primary: yfinance
+                    price = fetch_yf_price(symbol)
+                    # Fallback: Twelve Data (requires API key)
+                    if price is None:
+                        price = fetch_latest_price(symbol)
                     if price is not None:
                         s.current_price = float(price)
                         s.price_last_updated = datetime.now(UTC)
