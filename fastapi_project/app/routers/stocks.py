@@ -59,7 +59,11 @@ def download_stock_csv_template():
     )
 
 @router.post("/upload")
-async def upload_stock_csv(file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def upload_stock_csv(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user=Depends(require_authenticated_user)  # Require auth in non-dev
+):
     """Upload a CSV file to bulk add stock positions.
 
     Tolerates common header variants from spreadsheets:
