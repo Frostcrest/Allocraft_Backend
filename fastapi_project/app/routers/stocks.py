@@ -60,26 +60,54 @@ def download_stock_csv_template():
 
 @router.post("/upload")
 async def upload_stock_csv(file: UploadFile = File(...), db: Session = Depends(get_db)):
-    """Upload a CSV file to bulk add stock positions."""
+    """Upload a CSV file to bulk add stock positions.
+
+    Tolerates common header variants from spreadsheets:
+    - "Ticker" -> ticker
+    - "Shares" -> shares
+    - "Basis" (per-share) -> cost_basis
+    - ignores summary rows like "Total"
+    """
     contents = await file.read()
-    decoded = contents.decode("utf-8").splitlines()
+    decoded = contents.decode("utf-8", errors="ignore").splitlines()
     reader = csv.DictReader(decoded)
     created = []
-    for row in reader:
+    for raw_row in reader:
         try:
+            # Normalize header keys and strip values
+            row = { (k or "").strip().lower(): (v or "").strip() for k, v in raw_row.items() }
+
+            ticker = row.get("ticker")
+            if not ticker:
+                # Some exports might use a blank ticker for totals
+                continue
+            if ticker.lower() == "total":
+                # Skip summary rows
+                continue
+
+            shares_str = row.get("shares")
+            cost_basis_str = row.get("cost_basis") or row.get("basis") or row.get("avg_cost") or row.get("average_cost")
+            # Basic required fields
+            if not shares_str or not cost_basis_str:
+                continue
+
+            shares = float(shares_str)
+            cost_basis = float(cost_basis_str)
+
             db_stock = models.Stock(
-                ticker=row["ticker"].strip().upper(),
-                shares=float(row["shares"]),
-                cost_basis=float(row["cost_basis"]),
+                ticker=ticker.upper(),
+                shares=shares,
+                cost_basis=cost_basis,
                 market_price=None,
-                status=row.get("status", "Open"),
-                entry_date=row.get("entry_date") or None,
+                status=row.get("status") or "Open",
+                entry_date=row.get("entry_date") or row.get("date") or None,
                 current_price=None,
                 price_last_updated=None,
             )
             db.add(db_stock)
             created.append(db_stock)
         except Exception:
+            # Ignore bad rows; continue importing others
             continue
     db.commit()
     return {"created": len(created)}
