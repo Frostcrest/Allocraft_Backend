@@ -43,7 +43,11 @@ def fetch_latest_price(ticker: str) -> Optional[float]:
 
 def fetch_yf_price(ticker: str) -> Optional[float]:
     """
-    Fetch the latest price for a stock using yfinance as a backup.
+    Fetch the latest price for a stock using yfinance with multiple fallbacks:
+    1) fast_info.last_price
+    2) info.regularMarketPrice/currentPrice/previousClose
+    3) history(period='1d').Close last
+    4) history(period='5d').Close last
     Returns the price as a float, or None if not found.
     """
     now = datetime.now(UTC)
@@ -51,8 +55,44 @@ def fetch_yf_price(ticker: str) -> Optional[float]:
     if hit and now - hit[1] < PRICE_TTL:
         return hit[0]
     try:
-        data = yf.Ticker(ticker)
-        price = data.fast_info.get('last_price')
+        t = yf.Ticker(ticker)
+        # 1) fast_info
+        price = None
+        try:
+            price = (getattr(t, "fast_info", {}) or {}).get("last_price")
+        except Exception:
+            price = None
+        # 2) info fields
+        if price is None:
+            try:
+                info = t.info or {}
+                price = (
+                    info.get("regularMarketPrice")
+                    or info.get("currentPrice")
+                    or info.get("previousClose")
+                )
+            except Exception:
+                price = None
+        # 3) 1d history close
+        if price is None:
+            try:
+                hist = t.history(period="1d", interval="1d")
+                if hasattr(hist, "empty") and not hist.empty:
+                    closing = hist["Close"].dropna()
+                    if len(closing) > 0:
+                        price = float(closing.iloc[-1])
+            except Exception:
+                price = None
+        # 4) 5d history close
+        if price is None:
+            try:
+                hist = t.history(period="5d", interval="1d")
+                if hasattr(hist, "empty") and not hist.empty:
+                    closing = hist["Close"].dropna()
+                    if len(closing) > 0:
+                        price = float(closing.iloc[-1])
+            except Exception:
+                price = None
         if price is None:
             return None
         val = float(price)
