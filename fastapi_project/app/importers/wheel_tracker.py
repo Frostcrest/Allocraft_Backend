@@ -27,7 +27,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
-from app import models, crud, schemas
+from .. import models, crud, schemas
 
 
 @dataclass

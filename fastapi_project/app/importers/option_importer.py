@@ -2,7 +2,7 @@ from pathlib import Path
 import csv
 from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
-from app import models, crud
+from .. import models, crud
 
 def import_option_csv(db: Session, csv_path: str) -> Dict[str, Any]:
     """

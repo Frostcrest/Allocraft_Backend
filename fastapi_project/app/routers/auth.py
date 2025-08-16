@@ -13,9 +13,9 @@ from jose import JWTError, jwt
 from datetime import datetime, timedelta, UTC
 import os
 from dotenv import load_dotenv
-from app import schemas, crud, models
-from app.database import get_db
-from app.utils.security import verify_password
+from .. import schemas, crud, models
+from ..database import get_db
+from ..utils.security import verify_password
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
 load_dotenv()
