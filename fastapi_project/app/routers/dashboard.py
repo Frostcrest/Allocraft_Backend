@@ -104,3 +104,7 @@ def snapshot(db: Session = Depends(get_db)) -> Dict[str, Any]:
             "active_positions": active_positions,
         },
     }
+
+    # Current: Multiple individual queries
+    for lot in lots:
+        links = await wheelApi.getLotLinks(l.id)
