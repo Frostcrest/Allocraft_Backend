@@ -25,9 +25,30 @@ Prefer manual steps? Follow the guide below.
 
 ## Features
 
-- REST API for managing stocks, options, and wheel strategies
-- Real-time price fetching via Twelve Data and Yahoo Finance APIs
-- CSV import/export for bulk management
+- **High Performance REST API** for managing stocks, options, and wheel strategies
+- **Real-time price fetching** via Twelve Data and Yahoo Finance APIs
+- **CSV import/export** for bulk management
+- **Optimized Database Operations** with BatchLoaderService to eliminate N+1 queries
+- **Enhanced Error Handling** with structured error responses and logging
+- **Pre-commit Code Quality Hooks** for consistent formatting and linting
+- **Comprehensive Testing Framework** with pytest integration
+
+## Recent Backend Improvements
+
+### Performance Optimizations
+- **BatchLoaderService**: Eliminates N+1 query problems for database operations
+- **Optimized API Endpoints**: Faster response times for data retrieval
+- **Efficient Data Loading**: Bulk operations with reduced database round trips
+
+### Code Quality Enhancements
+- **Standardized Error Handling**: Consistent error patterns across all endpoints
+- **Enhanced Logging**: Better debugging and monitoring capabilities
+- **Type Safety**: Improved Pydantic schemas and validation
+
+### Developer Experience
+- **Pre-commit Hooks**: Automatic code formatting and linting
+- **Improved Testing**: Enhanced test coverage and reliability
+- **Better Documentation**: Clear API documentation with examples
 - User authentication and role-based access (JWT)
 - Simple web UI for local testing at `/`
 - Production frontend at [https://allocraft.app](https://allocraft.app)
@@ -159,6 +180,49 @@ python -m uvicorn app.main:app --reload
       -H "Content-Type: application/json" ^
       -d "{\"symbol\": \"AAPL\"}"
     ```
+
+---
+
+## Testing and Development
+
+### Running Tests
+
+The backend includes a comprehensive testing suite:
+
+```powershell
+# Run all tests
+python -m pytest
+
+# Run with coverage
+python -m pytest --cov=app
+
+# Run specific test files
+python -m pytest tests/test_stocks_crud.py
+```
+
+### Code Quality
+
+Pre-commit hooks are configured for code quality:
+
+```powershell
+# Install pre-commit hooks (first time only)
+pre-commit install
+
+# Run hooks manually
+pre-commit run --all-files
+```
+
+### API Performance Testing
+
+Test optimized endpoints for performance improvements:
+
+```powershell
+# Test BatchLoaderService efficiency
+curl -X GET "http://127.0.0.1:8000/api/wheels/" -H "accept: application/json"
+
+# Test bulk operations
+curl -X GET "http://127.0.0.1:8000/api/stocks/" -H "accept: application/json"
+```
 
 ---
 

@@ -24,9 +24,11 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from .. import schemas, crud, models
 from ..database import get_db
+from ..crud_optimized import BatchLoaderService, MetricsService, refresh_prices_batch
 from fastapi.responses import StreamingResponse
 import io
 import csv
+from typing import Optional, Dict, Any
 
 router = APIRouter(prefix="/wheels", tags=["Wheels"])
 
@@ -414,3 +416,284 @@ def get_lot_links(lot_id: int, db: Session = Depends(get_db)):
             ) for e in events
         ]
     }
+
+
+# ===== OPTIMIZED ENDPOINTS FOR PERFORMANCE =====
+
+@router.get("/tickers/{ticker}/wheel-data")
+def get_ticker_wheel_data_optimized(
+    ticker: str, 
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Get comprehensive wheel data for a ticker in optimized queries.
+    
+    This endpoint replaces multiple individual calls with a single optimized request
+    that fetches cycles, events, lots, and metrics in minimal database queries.
+    
+    Returns:
+        - cycles: List of wheel cycles for the ticker
+        - events: All events across all cycles
+        - lots: All lots with their events pre-loaded
+        - events_by_lot: Dict mapping lot_id to list of events
+        - metrics: Aggregated metrics across all cycles
+    """
+    try:
+        data = BatchLoaderService.get_wheel_data_for_ticker(db, ticker)
+        
+        # Convert to API response format
+        return {
+            "cycles": [
+                schemas.WheelCycleRead(
+                    id=c.id,
+                    ticker=c.ticker,
+                    cycle_key=c.cycle_key,
+                    started_at=c.started_at,
+                    ended_at=c.ended_at,
+                    status=c.status,
+                    initial_stock_price=c.initial_stock_price,
+                    put_strike=c.put_strike,
+                    capital_at_risk=c.capital_at_risk,
+                    notes=c.notes
+                ) for c in data["cycles"]
+            ],
+            "events": [
+                schemas.WheelEventRead(
+                    id=e.id,
+                    cycle_id=e.cycle_id,
+                    event_type=e.event_type,
+                    trade_date=e.trade_date,
+                    quantity_shares=e.quantity_shares,
+                    contracts=e.contracts,
+                    price=e.price,
+                    strike=e.strike,
+                    premium=e.premium,
+                    fees=e.fees,
+                    link_event_id=e.link_event_id,
+                    notes=e.notes
+                ) for e in data["events"]
+            ],
+            "lots": [
+                schemas.LotRead(
+                    id=lot.id,
+                    cycle_id=lot.cycle_id,
+                    lot_id=lot.lot_id,
+                    acquisition_method=lot.acquisition_method,
+                    acquisition_date=lot.acquisition_date,
+                    acquisition_price=lot.acquisition_price,
+                    quantity_initial=lot.quantity_initial,
+                    status=lot.status,
+                    cost_basis=lot.cost_basis,
+                    realized_pl=lot.realized_pl,
+                    notes=lot.notes
+                ) for lot in data["lots"]
+            ],
+            "events_by_lot": {
+                str(lot_id): [
+                    schemas.WheelEventRead(
+                        id=e.id,
+                        cycle_id=e.cycle_id,
+                        event_type=e.event_type,
+                        trade_date=e.trade_date,
+                        quantity_shares=e.quantity_shares,
+                        contracts=e.contracts,
+                        price=e.price,
+                        strike=e.strike,
+                        premium=e.premium,
+                        fees=e.fees,
+                        link_event_id=e.link_event_id,
+                        notes=e.notes
+                    ) for e in events
+                ] for lot_id, events in data["events_by_lot"].items()
+            },
+            "metrics": data["metrics"]
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to load wheel data for ticker {ticker}: {str(e)}"
+        )
+
+
+@router.post("/refresh-prices")
+def refresh_ticker_prices(
+    tickers: list[str],
+    db: Session = Depends(get_db)
+) -> Dict[str, Optional[float]]:
+    """
+    Refresh current prices for multiple tickers efficiently.
+    
+    This endpoint batches price fetching and database updates to minimize
+    API calls and database transactions.
+    
+    Args:
+        tickers: List of ticker symbols to refresh
+        
+    Returns:
+        Dict mapping ticker to current price (or None if failed)
+    """
+    try:
+        # Convert to uppercase for consistency
+        tickers_upper = [t.upper() for t in tickers]
+        
+        # Batch refresh prices
+        results = refresh_prices_batch(db, tickers_upper)
+        
+        return results
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to refresh prices: {str(e)}"
+        )
+
+
+class CycleMetricsRequest(BaseModel):
+    cycle_ids: list[int]
+
+
+@router.post("/metrics/aggregate")
+def get_aggregated_cycle_metrics(
+    request: CycleMetricsRequest,
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Get aggregated metrics across multiple cycles efficiently.
+    
+    This endpoint calculates performance metrics across multiple cycles
+    without requiring individual cycle queries.
+    
+    Args:
+        cycle_ids: List of cycle IDs to include in aggregation
+        
+    Returns:
+        Aggregated metrics including P&L, cashflow, and performance ratios
+    """
+    try:
+        metrics = MetricsService.aggregate_ticker_metrics(db, request.cycle_ids)
+        
+        if metrics is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Unable to calculate metrics for the provided cycles"
+            )
+            
+        return metrics
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to calculate aggregated metrics: {str(e)}"
+        )
+
+
+@router.get("/cycles/batch")
+def get_cycles_with_lots_batch(
+    cycle_ids: str,  # Comma-separated list of cycle IDs
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Get multiple cycles with their lots and events in a single optimized query.
+    
+    This endpoint is designed for dashboard views that need to display
+    multiple cycles simultaneously without N+1 query problems.
+    
+    Args:
+        cycle_ids: Comma-separated string of cycle IDs (e.g., "1,2,3")
+        
+    Returns:
+        Cycles with lots and events grouped by cycle
+    """
+    try:
+        # Parse cycle IDs
+        try:
+            cycle_id_list = [int(id.strip()) for id in cycle_ids.split(",")]
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid cycle_ids format. Use comma-separated integers."
+            )
+        
+        # Get cycles
+        cycles = db.query(models.WheelCycle).filter(
+            models.WheelCycle.id.in_(cycle_id_list)
+        ).all()
+        
+        if not cycles:
+            return {"cycles": [], "lots_by_cycle": {}, "events_by_lot": {}}
+        
+        # Batch load lots and events
+        lots, events_by_lot = BatchLoaderService.get_lots_with_events_optimized(
+            db, cycle_id_list
+        )
+        
+        # Group lots by cycle
+        lots_by_cycle = {}
+        for lot in lots:
+            cycle_id = lot.cycle_id
+            if cycle_id not in lots_by_cycle:
+                lots_by_cycle[cycle_id] = []
+            lots_by_cycle[cycle_id].append(lot)
+        
+        return {
+            "cycles": [
+                schemas.WheelCycleRead(
+                    id=c.id,
+                    ticker=c.ticker,
+                    cycle_key=c.cycle_key,
+                    started_at=c.started_at,
+                    ended_at=c.ended_at,
+                    status=c.status,
+                    initial_stock_price=c.initial_stock_price,
+                    put_strike=c.put_strike,
+                    capital_at_risk=c.capital_at_risk,
+                    notes=c.notes
+                ) for c in cycles
+            ],
+            "lots_by_cycle": {
+                str(cycle_id): [
+                    schemas.LotRead(
+                        id=lot.id,
+                        cycle_id=lot.cycle_id,
+                        lot_id=lot.lot_id,
+                        acquisition_method=lot.acquisition_method,
+                        acquisition_date=lot.acquisition_date,
+                        acquisition_price=lot.acquisition_price,
+                        quantity_initial=lot.quantity_initial,
+                        status=lot.status,
+                        cost_basis=lot.cost_basis,
+                        realized_pl=lot.realized_pl,
+                        notes=lot.notes
+                    ) for lot in lots
+                ] for cycle_id, lots in lots_by_cycle.items()
+            },
+            "events_by_lot": {
+                str(lot_id): [
+                    schemas.WheelEventRead(
+                        id=e.id,
+                        cycle_id=e.cycle_id,
+                        event_type=e.event_type,
+                        trade_date=e.trade_date,
+                        quantity_shares=e.quantity_shares,
+                        contracts=e.contracts,
+                        price=e.price,
+                        strike=e.strike,
+                        premium=e.premium,
+                        fees=e.fees,
+                        link_event_id=e.link_event_id,
+                        notes=e.notes
+                    ) for e in events
+                ] for lot_id, events in events_by_lot.items()
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to load cycles with lots: {str(e)}"
+        )
