@@ -33,25 +33,20 @@ app = FastAPI(
 )
 
 # --- CORS configuration ---
-frontend_origins = os.getenv("FRONTEND_ORIGINS", "")
-allow_origins = [o.strip() for o in frontend_origins.split(",") if o.strip()]
-if allow_origins:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=allow_origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-else:
-    # Default: allow any localhost HTTP origin (any port), suitable for Vite dev servers
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+origins = [
+    "http://localhost:5173",
+    "http://localhost:5174", 
+    "https://allocraft.app",
+    "https://www.allocraft.app"
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # --- Static Files ---
 BASE_DIR = Path(__file__).resolve().parent

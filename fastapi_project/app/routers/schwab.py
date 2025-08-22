@@ -22,7 +22,7 @@ SCHWAB_CONFIG = {
     "accounts_url": "https://api.schwabapi.com/trader/v1/accounts",
     "client_id": os.getenv("SCHWAB_CLIENT_ID", ""),
     "client_secret": os.getenv("SCHWAB_CLIENT_SECRET", ""),
-    "redirect_uri": os.getenv("SCHWAB_REDIRECT_URI", "http://localhost:3000/api/schwab/callback")
+    "redirect_uri": os.getenv("SCHWAB_REDIRECT_URI", "https://allocraft-backend.onrender.com/schwab/callback")
 }
 
 @router.get("/auth-url")
@@ -56,14 +56,14 @@ async def oauth_callback(code: Optional[str] = None, error: Optional[str] = None
         tokens = await exchange_code_for_tokens(code)
         
         # Redirect back to frontend with success
-        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+        frontend_url = os.getenv("FRONTEND_URL", "https://allocraft.app")
         return RedirectResponse(
             url=f"{frontend_url}/auth/callback?success=true",
             status_code=302
         )
     except Exception as e:
         logger.error(f"Token exchange failed: {e}")
-        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+        frontend_url = os.getenv("FRONTEND_URL", "https://allocraft.app")
         return RedirectResponse(
             url=f"{frontend_url}/auth/callback?error={str(e)}",
             status_code=302
