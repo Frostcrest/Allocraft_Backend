@@ -5,6 +5,7 @@ pydantic
 twelvedata
 yfinance
 requests
+httpx
 python-multipart
 passlib[bcrypt]
 python-jose
