@@ -44,7 +44,7 @@ async def get_auth_url(
         "response_type": "code",
         "client_id": SCHWAB_CONFIG["client_id"],
         "redirect_uri": SCHWAB_CONFIG["redirect_uri"],
-        "scope": "readonly",
+        "scope": "AccountAccess",
         "state": state
     }
     
