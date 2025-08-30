@@ -207,3 +207,8 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
     roles = Column(String, default="user")  # Comma-separated roles, e.g., "user,admin"
+    
+    # Schwab OAuth tokens
+    schwab_access_token = Column(String, nullable=True)
+    schwab_refresh_token = Column(String, nullable=True)
+    schwab_token_expires_at = Column(DateTime, nullable=True)
