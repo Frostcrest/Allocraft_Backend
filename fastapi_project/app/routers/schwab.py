@@ -30,16 +30,22 @@ SCHWAB_CONFIG = {
 }
 
 @router.get("/auth-url")
-async def get_auth_url():
-    """Generate Schwab OAuth authorization URL"""
+async def get_auth_url(
+    current_user: models.User = Depends(get_current_user)
+):
+    """Generate Schwab OAuth authorization URL with user state"""
     if not SCHWAB_CONFIG["client_id"]:
         raise HTTPException(status_code=500, detail="Schwab Client ID not configured")
+    
+    # Use user ID as state parameter to maintain session
+    state = str(current_user.id)
     
     params = {
         "response_type": "code",
         "client_id": SCHWAB_CONFIG["client_id"],
         "redirect_uri": SCHWAB_CONFIG["redirect_uri"],
-        "scope": "AccountsAndTrading readonly"
+        "scope": "AccountsAndTrading readonly",
+        "state": state
     }
     
     auth_url = f"{SCHWAB_CONFIG['auth_url']}?{urlencode(params)}"
@@ -48,36 +54,58 @@ async def get_auth_url():
 @router.get("/callback")
 async def oauth_callback(
     code: Optional[str] = None, 
+    state: Optional[str] = None,
     error: Optional[str] = None,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    db: Session = Depends(get_db)
 ):
     """Handle OAuth callback from Schwab"""
     if error:
         logger.error(f"OAuth error: {error}")
-        raise HTTPException(status_code=400, detail=f"OAuth error: {error}")
+        frontend_url = os.getenv("FRONTEND_URL", "https://allocraft.app")
+        return RedirectResponse(
+            url=f"{frontend_url}/stocks?error={error}",
+            status_code=302
+        )
     
     if not code:
-        raise HTTPException(status_code=400, detail="No authorization code received")
+        frontend_url = os.getenv("FRONTEND_URL", "https://allocraft.app")
+        return RedirectResponse(
+            url=f"{frontend_url}/stocks?error=no_authorization_code",
+            status_code=302
+        )
+    
+    if not state:
+        frontend_url = os.getenv("FRONTEND_URL", "https://allocraft.app")
+        return RedirectResponse(
+            url=f"{frontend_url}/stocks?error=no_state_parameter",
+            status_code=302
+        )
     
     try:
+        # Get user by ID from state parameter
+        user_id = int(state)
+        user = db.query(models.User).filter(models.User.id == user_id).first()
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
         # Exchange code for tokens
         tokens = await exchange_code_for_tokens(code)
         
         # Store tokens with the user
-        await store_user_schwab_tokens(db, current_user, tokens)
+        await store_user_schwab_tokens(db, user, tokens)
         
         # Redirect back to frontend with success
         frontend_url = os.getenv("FRONTEND_URL", "https://allocraft.app")
         return RedirectResponse(
-            url=f"{frontend_url}/auth/callback?success=true",
+            url=f"{frontend_url}/stocks?schwab_connected=true",
             status_code=302
         )
     except Exception as e:
         logger.error(f"Token exchange failed: {e}")
         frontend_url = os.getenv("FRONTEND_URL", "https://allocraft.app")
         return RedirectResponse(
-            url=f"{frontend_url}/auth/callback?error={str(e)}",
+            url=f"{frontend_url}/stocks?error={str(e)}",
             status_code=302
         )
 
