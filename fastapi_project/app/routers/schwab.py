@@ -12,7 +12,8 @@ from urllib.parse import urlencode
 import logging
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-from ..dependencies import get_current_user, get_db
+from ..dependencies import get_current_user
+from ..database import get_db
 from .. import models
 
 router = APIRouter(prefix="/schwab", tags=["schwab"])
