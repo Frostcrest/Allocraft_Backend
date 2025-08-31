@@ -24,6 +24,7 @@ SCHWAB_CONFIG = {
     "auth_url": "https://api.schwabapi.com/v1/oauth/authorize",
     "token_url": "https://api.schwabapi.com/v1/oauth/token",
     "accounts_url": "https://api.schwabapi.com/trader/v1/accounts",
+    "account_numbers_url": "https://api.schwabapi.com/trader/v1/accounts/accountNumbers",
     "client_id": os.getenv("SCHWAB_CLIENT_ID", ""),
     "client_secret": os.getenv("SCHWAB_CLIENT_SECRET", ""),
     "redirect_uri": os.getenv("SCHWAB_REDIRECT_URI", "https://allocraft-backend.onrender.com/schwab/callback")
@@ -224,17 +225,31 @@ async def get_accounts(
         "Accept": "application/json"
     }
     
+    # Use the accountNumbers endpoint to get the list with hashes
+    url = SCHWAB_CONFIG["account_numbers_url"]
+    
+    logger.info(f"Fetching account numbers from: {url}")
+    
     async with httpx.AsyncClient() as client:
-        response = await client.get(
-            SCHWAB_CONFIG["accounts_url"],
-            headers=headers
-        )
+        response = await client.get(url, headers=headers)
+        
+        logger.info(f"Account numbers response status: {response.status_code}")
+        logger.info(f"Account numbers response content: {response.text}")
         
         if response.status_code != 200:
-            raise HTTPException(
-                status_code=response.status_code,
-                detail=f"Failed to fetch accounts: {response.text}"
-            )
+            # Fallback to the original accounts endpoint if accountNumbers doesn't work
+            logger.warning("AccountNumbers endpoint failed, falling back to accounts endpoint")
+            fallback_response = await client.get(SCHWAB_CONFIG["accounts_url"], headers=headers)
+            
+            if fallback_response.status_code != 200:
+                raise HTTPException(
+                    status_code=fallback_response.status_code,
+                    detail=f"Failed to fetch accounts: {fallback_response.text}"
+                )
+            
+            accounts_data = fallback_response.json()
+            logger.info(f"Fallback accounts response: {accounts_data}")
+            return accounts_data
         
         accounts_data = response.json()
         logger.info(f"Account summaries response: {accounts_data}")
