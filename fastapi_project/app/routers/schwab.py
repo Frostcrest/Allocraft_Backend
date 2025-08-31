@@ -236,7 +236,10 @@ async def get_accounts(
                 detail=f"Failed to fetch accounts: {response.text}"
             )
         
-        return response.json()
+        accounts_data = response.json()
+        logger.info(f"Full accounts response: {accounts_data}")
+        
+        return accounts_data
 
 @router.get("/accounts/{account_id}/positions")
 async def get_positions(
@@ -256,13 +259,55 @@ async def get_positions(
     
     url = f"{SCHWAB_CONFIG['accounts_url']}/{account_id}?fields=positions"
     
+    # Add detailed logging
+    logger.info(f"Fetching positions for account {account_id}")
+    logger.info(f"Full URL: {url}")
+    logger.info(f"Headers: {headers}")
+    
     async with httpx.AsyncClient() as client:
         response = await client.get(url, headers=headers)
+        
+        logger.info(f"Response status: {response.status_code}")
+        logger.info(f"Response content: {response.text}")
         
         if response.status_code != 200:
             raise HTTPException(
                 status_code=response.status_code,
                 detail=f"Failed to fetch positions: {response.text}"
+            )
+        
+        return response.json()
+
+@router.get("/accounts-with-positions")
+async def get_accounts_with_positions(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Get user's Schwab accounts with positions included"""
+    access_token = await get_user_schwab_token(db, current_user)
+    if not access_token:
+        raise HTTPException(status_code=401, detail="Not authenticated with Schwab")
+    
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Accept": "application/json"
+    }
+    
+    # Try to get accounts with positions field
+    url = f"{SCHWAB_CONFIG['accounts_url']}?fields=positions"
+    
+    logger.info(f"Fetching accounts with positions: {url}")
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, headers=headers)
+        
+        logger.info(f"Accounts with positions response status: {response.status_code}")
+        logger.info(f"Accounts with positions response: {response.text}")
+        
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"Failed to fetch accounts with positions: {response.text}"
             )
         
         return response.json()
