@@ -5,12 +5,12 @@ from datetime import datetime, timedelta
 import json
 import logging
 from ..models import SchwabAccount, SchwabPosition, PositionSnapshot
-from ..core.schwab_client import SchwabClient
+# from ..core.schwab_client import SchwabClient  # TODO: Implement when core module is created
 
 logger = logging.getLogger(__name__)
 
 class SchwabSyncService:
-    def __init__(self, db: Session, schwab_client: SchwabClient):
+    def __init__(self, db: Session, schwab_client=None):  # Made schwab_client optional
         self.db = db
         self.schwab_client = schwab_client
     
