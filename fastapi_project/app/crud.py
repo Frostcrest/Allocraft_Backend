@@ -3,7 +3,9 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from datetime import datetime, UTC
 
-from . import models, schemas
+from . import schemas
+from . import models
+from .models import Ticker, Stock, Price  # Import specific models directly
 from .services.price_service import (
     fetch_latest_price,
     fetch_yf_price,
@@ -15,9 +17,9 @@ def get_ticker_by_symbol(db: Session, symbol: str):
     """
     Retrieve a ticker by its symbol.
     """
-    return db.query(models.Ticker).filter(models.Ticker.symbol == symbol).first()
+    return db.query(Ticker).filter(Ticker.symbol == symbol).first()
 
-def create_ticker(db: Session, symbol: str) -> models.Ticker:
+def create_ticker(db: Session, symbol: str) -> Ticker:
     """
     Create and persist a new ticker by symbol.
     If it already exists, returns the existing ticker.
@@ -28,7 +30,7 @@ def create_ticker(db: Session, symbol: str) -> models.Ticker:
     ticker_data = fetch_ticker_info(symbol)
     if not ticker_data or not ticker_data.get("symbol"):
         raise HTTPException(status_code=404, detail=f"Ticker '{symbol}' not found.")
-    db_ticker = models.Ticker(**ticker_data)
+    db_ticker = Ticker(**ticker_data)
     db.add(db_ticker)
     db.commit()
     db.refresh(db_ticker)
@@ -38,19 +40,19 @@ def get_tickers(db: Session, skip: int = 0, limit: int = 100):
     """
     Retrieve a list of tickers with pagination.
     """
-    return db.query(models.Ticker).offset(skip).limit(limit).all()
+    return db.query(Ticker).offset(skip).limit(limit).all()
 
 def get_ticker_by_id(db: Session, ticker_id: int):
     """
     Retrieve a ticker by its primary key ID.
     """
-    return db.query(models.Ticker).filter(models.Ticker.id == ticker_id).first()
+    return db.query(Ticker).filter(Ticker.id == ticker_id).first()
 
 def delete_ticker(db: Session, ticker_id: int):
     """
     Delete a ticker by its ID. Returns True if deleted.
     """
-    db_ticker = db.query(models.Ticker).filter(models.Ticker.id == ticker_id).first()
+    db_ticker = db.query(Ticker).filter(Ticker.id == ticker_id).first()
     if not db_ticker:
         return False
     db.delete(db_ticker)
