@@ -234,7 +234,7 @@ class SchwabAccount(Base):
     day_trading_buying_power = Column(Float, default=0.0)
     
     # Relationships
-    positions = relationship("SchwabPosition", back_populates="account", cascade="all, delete-orphan")
+    # positions = relationship("SchwabPosition", back_populates="account", cascade="all, delete-orphan")
     
 class SchwabPosition(Base):
     __tablename__ = "schwab_positions"
@@ -279,7 +279,7 @@ class SchwabPosition(Base):
     raw_data = Column(String)  # JSON string of original Schwab response
     
     # Relationships
-    account = relationship("SchwabAccount", back_populates="positions")
+    # account = relationship("SchwabAccount", back_populates="positions")
 
 class PositionSnapshot(Base):
     __tablename__ = "position_snapshots"
