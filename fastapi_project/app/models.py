@@ -47,6 +47,7 @@ class User(Base):
     hashed_password = Column(String)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    roles = Column(String, default="")
 
 # Additional models for compatibility
 class Option(Base):
