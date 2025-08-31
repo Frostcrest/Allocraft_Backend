@@ -48,6 +48,12 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     roles = Column(String, default="")
+    
+    # Schwab OAuth tokens
+    schwab_access_token = Column(String, nullable=True)
+    schwab_refresh_token = Column(String, nullable=True)
+    schwab_token_expires_at = Column(DateTime, nullable=True)
+    schwab_account_linked = Column(Boolean, default=False)
 
 # Additional models for compatibility
 class Option(Base):

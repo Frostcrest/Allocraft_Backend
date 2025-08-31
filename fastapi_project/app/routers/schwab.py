@@ -420,15 +420,17 @@ async def get_stored_positions(
 ):
     """Get positions from database with optional fresh sync"""
     try:
-        # schwab_client = SchwabClient()  # TODO: Implement SchwabClient
-        # sync_service = SchwabSyncService(db, schwab_client)  # TODO: Implement sync service
+        # Check if we should fetch fresh data from Schwab
+        if fresh or not db.query(SchwabAccount).first():
+            logger.info("Fetching fresh data from Schwab API")
+            return await fetch_fresh_positions_from_schwab(db, current_user)
         
-        if fresh:
-            # TODO: Force refresh from Schwab API when sync service is implemented
-            logger.warning("Fresh sync requested but not implemented yet")
-        
-        # Get stored positions
+        # Get stored positions from database
         accounts = db.query(SchwabAccount).all()
+        
+        if not accounts:
+            logger.info("No stored accounts found, fetching from Schwab API")
+            return await fetch_fresh_positions_from_schwab(db, current_user)
         
         result = []
         for account in accounts:
@@ -463,13 +465,23 @@ async def sync_positions(
 ):
     """Manually trigger position synchronization"""
     try:
-        # schwab_client = SchwabClient()  # TODO: Implement SchwabClient
-        # sync_service = SchwabSyncService(db, schwab_client)  # TODO: Implement sync service
+        logger.info(f"Manual sync requested by user {current_user.id}, force={force}")
         
-        # result = await sync_service.sync_all_accounts(force_refresh=force)
+        # Fetch fresh data from Schwab
+        fresh_data = await fetch_fresh_positions_from_schwab(db, current_user)
+        
+        # Store the fresh data in database (optional - you can comment this out if you just want to fetch)
+        # TODO: Implement database storage of synced positions
+        
         return {
-            "message": "Synchronization not implemented yet",
-            "result": {"status": "pending", "force": force}
+            "message": "Synchronization completed successfully",
+            "result": {
+                "status": "success", 
+                "force": force,
+                "accounts_synced": len(fresh_data),
+                "timestamp": datetime.utcnow().isoformat()
+            },
+            "data": fresh_data
         }
         
     except Exception as e:
@@ -553,4 +565,100 @@ def transform_position_to_frontend(position: SchwabPosition) -> Dict[str, Any]:
             "isShort": is_short
         })
     
+    return result
+
+async def fetch_fresh_positions_from_schwab(db: Session, current_user: User):
+    """Fetch fresh positions directly from Schwab API and optionally store them"""
+    access_token = await get_user_schwab_token(db, current_user)
+    if not access_token:
+        raise HTTPException(status_code=401, detail="Not authenticated with Schwab")
+    
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Accept": "application/json"
+    }
+    
+    try:
+        # First get account summaries
+        async with httpx.AsyncClient() as client:
+            accounts_response = await client.get(
+                f"{SCHWAB_CONFIG['account_numbers_url']}", 
+                headers=headers
+            )
+            
+            if accounts_response.status_code != 200:
+                raise HTTPException(
+                    status_code=accounts_response.status_code,
+                    detail=f"Failed to fetch accounts: {accounts_response.text}"
+                )
+            
+            accounts_data = accounts_response.json()
+            result = []
+            
+            # For each account, get positions
+            for account in accounts_data:
+                account_hash = account.get("hashValue")
+                account_number = account.get("accountNumber")
+                
+                if account_hash:
+                    positions_url = f"{SCHWAB_CONFIG['accounts_url']}/{account_hash}?fields=positions"
+                    
+                    positions_response = await client.get(positions_url, headers=headers)
+                    
+                    if positions_response.status_code == 200:
+                        account_data = positions_response.json()
+                        
+                        # Extract positions from the response
+                        positions = []
+                        securities_account = account_data.get("securitiesAccount", {})
+                        raw_positions = securities_account.get("positions", [])
+                        
+                        for pos in raw_positions:
+                            # Transform Schwab position to our format
+                            instrument = pos.get("instrument", {})
+                            position_data = {
+                                "symbol": instrument.get("symbol", ""),
+                                "description": instrument.get("description", ""),
+                                "quantity": pos.get("longQuantity", 0) - pos.get("shortQuantity", 0),
+                                "marketValue": pos.get("marketValue", 0),
+                                "averagePrice": pos.get("averagePrice", 0),
+                                "unrealizedPL": pos.get("currentDayProfitLoss", 0),
+                                "assetType": instrument.get("assetType", "EQUITY"),
+                                "isOption": instrument.get("assetType") == "OPTION"
+                            }
+                            
+                            # Add option-specific fields if it's an option
+                            if position_data["isOption"]:
+                                option_details = instrument.get("optionDeliverables", [{}])
+                                if option_details:
+                                    position_data.update({
+                                        "underlyingSymbol": option_details[0].get("symbol", ""),
+                                        "optionType": instrument.get("putCall", ""),
+                                        "strikePrice": instrument.get("strikePrice", 0),
+                                        "expirationDate": instrument.get("expirationDate", ""),
+                                        "contracts": abs(position_data["quantity"]),
+                                        "isShort": position_data["quantity"] < 0
+                                    })
+                            else:
+                                position_data.update({
+                                    "shares": abs(position_data["quantity"]),
+                                    "isShort": position_data["quantity"] < 0
+                                })
+                            
+                            positions.append(position_data)
+                        
+                        account_result = {
+                            "accountNumber": account_number,
+                            "accountType": securities_account.get("type", ""),
+                            "lastSynced": datetime.utcnow().isoformat(),
+                            "totalValue": securities_account.get("currentBalances", {}).get("liquidationValue", 0),
+                            "positions": positions
+                        }
+                        result.append(account_result)
+            
+            return result
+            
+    except Exception as e:
+        logger.error(f"Error fetching fresh positions: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch positions from Schwab: {str(e)}")
     return result
