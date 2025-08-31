@@ -15,6 +15,8 @@ from sqlalchemy.orm import Session
 from ..dependencies import get_current_user
 from ..database import get_db
 from .. import models
+from ..services.schwab_sync_service import SchwabSyncService
+from ..models.schwab_models import SchwabAccount, SchwabPosition
 
 router = APIRouter(prefix="/schwab", tags=["schwab"])
 logger = logging.getLogger(__name__)
@@ -212,49 +214,37 @@ async def refresh_schwab_token(refresh_token: str) -> Dict[str, Any]:
 
 @router.get("/accounts")
 async def get_accounts(
+    refresh: bool = False,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
-    """Get user's Schwab account summaries (returns accountNumber and hashValue)"""
-    access_token = await get_user_schwab_token(db, current_user)
-    if not access_token:
-        raise HTTPException(status_code=401, detail="Not authenticated with Schwab")
-    
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Accept": "application/json"
-    }
-    
-    # Use the accountNumbers endpoint to get the list with hashes
-    url = SCHWAB_CONFIG["account_numbers_url"]
-    
-    logger.info(f"Fetching account numbers from: {url}")
-    
-    async with httpx.AsyncClient() as client:
-        response = await client.get(url, headers=headers)
+    """Get account summaries from database with optional refresh"""
+    try:
+        if refresh:
+            # Trigger sync first
+            schwab_client = SchwabClient()
+            sync_service = SchwabSyncService(db, schwab_client)
+            await sync_service.sync_all_accounts(force_refresh=True)
         
-        logger.info(f"Account numbers response status: {response.status_code}")
-        logger.info(f"Account numbers response content: {response.text}")
+        # Try to get from database first
+        stored_accounts = db.query(SchwabAccount).all()
         
-        if response.status_code != 200:
-            # Fallback to the original accounts endpoint if accountNumbers doesn't work
-            logger.warning("AccountNumbers endpoint failed, falling back to accounts endpoint")
-            fallback_response = await client.get(SCHWAB_CONFIG["accounts_url"], headers=headers)
-            
-            if fallback_response.status_code != 200:
-                raise HTTPException(
-                    status_code=fallback_response.status_code,
-                    detail=f"Failed to fetch accounts: {fallback_response.text}"
-                )
-            
-            accounts_data = fallback_response.json()
-            logger.info(f"Fallback accounts response: {accounts_data}")
-            return accounts_data
+        if stored_accounts:
+            return [
+                {
+                    "accountNumber": account.account_number,
+                    "hashValue": account.hash_value
+                }
+                for account in stored_accounts
+            ]
         
-        accounts_data = response.json()
-        logger.info(f"Account summaries response: {accounts_data}")
+        # Fallback to API if no stored accounts
+        schwab_client = SchwabClient()
+        return await schwab_client.get_account_summaries()
         
-        return accounts_data
+    except Exception as e:
+        logger.error(f"Error getting accounts: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/accounts/{account_hash}")
 async def get_account_by_hash(
@@ -421,3 +411,147 @@ async def health_check():
             "redirect_uri": SCHWAB_CONFIG["redirect_uri"]
         }
     }
+
+@router.get("/positions")
+async def get_stored_positions(
+    fresh: bool = False,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get positions from database with optional fresh sync"""
+    try:
+        schwab_client = SchwabClient()
+        sync_service = SchwabSyncService(db, schwab_client)
+        
+        if fresh:
+            # Force refresh from Schwab API
+            sync_result = await sync_service.sync_all_accounts(force_refresh=True)
+            logger.info(f"Fresh sync completed: {sync_result}")
+        
+        # Get stored positions
+        accounts = db.query(SchwabAccount).all()
+        
+        result = []
+        for account in accounts:
+            active_positions = db.query(SchwabPosition).filter(
+                and_(
+                    SchwabPosition.account_id == account.id,
+                    SchwabPosition.is_active == True
+                )
+            ).all()
+            
+            # Transform to expected format
+            account_data = {
+                "accountNumber": account.account_number,
+                "accountType": account.account_type,
+                "lastSynced": account.last_synced.isoformat() if account.last_synced else None,
+                "totalValue": account.total_value,
+                "positions": [transform_position_to_frontend(pos) for pos in active_positions]
+            }
+            result.append(account_data)
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error getting stored positions: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/sync")
+async def sync_positions(
+    force: bool = False,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Manually trigger position synchronization"""
+    try:
+        schwab_client = SchwabClient()
+        sync_service = SchwabSyncService(db, schwab_client)
+        
+        result = await sync_service.sync_all_accounts(force_refresh=force)
+        return {
+            "message": "Synchronization completed",
+            "result": result
+        }
+        
+    except Exception as e:
+        logger.error(f"Error during manual sync: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/sync-status")
+async def get_sync_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get synchronization status for all accounts"""
+    try:
+        accounts = db.query(SchwabAccount).all()
+        
+        status = []
+        for account in accounts:
+            last_sync = account.last_synced
+            is_recent = False
+            
+            if last_sync:
+                threshold = datetime.utcnow() - timedelta(minutes=5)
+                is_recent = last_sync > threshold
+            
+            position_count = db.query(SchwabPosition).filter(
+                and_(
+                    SchwabPosition.account_id == account.id,
+                    SchwabPosition.is_active == True
+                )
+            ).count()
+            
+            status.append({
+                "accountNumber": account.account_number,
+                "lastSynced": last_sync.isoformat() if last_sync else None,
+                "isRecentlySynced": is_recent,
+                "positionCount": position_count,
+                "totalValue": account.total_value
+            })
+        
+        return status
+        
+    except Exception as e:
+        logger.error(f"Error getting sync status: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+def transform_position_to_frontend(position: SchwabPosition) -> Dict[str, Any]:
+    """Transform database position to frontend format"""
+    
+    # Determine if it's a long or short position
+    net_quantity = (position.long_quantity or 0.0) - (position.short_quantity or 0.0)
+    is_short = net_quantity < 0
+    
+    result = {
+        "symbol": position.symbol,
+        "quantity": abs(net_quantity),
+        "marketValue": position.market_value or 0.0,
+        "averagePrice": position.average_long_price if not is_short else position.average_short_price,
+        "profitLoss": (position.long_open_profit_loss or 0.0) + (position.short_open_profit_loss or 0.0),
+        "profitLossPercentage": position.current_day_profit_loss_percentage or 0.0,
+        "assetType": position.asset_type,
+        "lastUpdated": position.last_updated.isoformat() if position.last_updated else None,
+        "accountNumber": position.account.account_number,
+        "source": "schwab"
+    }
+    
+    # Add option-specific fields
+    if position.asset_type == "OPTION":
+        result.update({
+            "isOption": True,
+            "underlyingSymbol": position.underlying_symbol,
+            "optionType": position.option_type,
+            "strikePrice": position.strike_price,
+            "expirationDate": position.expiration_date.isoformat() if position.expiration_date else None,
+            "contracts": abs(net_quantity),
+            "isShort": is_short
+        })
+    else:
+        result.update({
+            "isOption": False,
+            "shares": abs(net_quantity),
+            "isShort": is_short
+        })
+    
+    return result
