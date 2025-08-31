@@ -4,7 +4,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 import json
 import logging
-from ..models.schwab_models import SchwabAccount, SchwabPosition, PositionSnapshot
+from ..models import SchwabAccount, SchwabPosition, PositionSnapshot
 from ..core.schwab_client import SchwabClient
 
 logger = logging.getLogger(__name__)

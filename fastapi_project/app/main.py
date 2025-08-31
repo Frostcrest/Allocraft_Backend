@@ -14,8 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from .database import Base, engine, SessionLocal
 # Import models before calling create_all to ensure all tables are registered
-from . import models  # noqa: F401
-from .models import schwab_models  # noqa: F401
+from . import models  # noqa: F401 - imports all models from models.py
 import os
 from dotenv import load_dotenv
 from datetime import datetime, UTC

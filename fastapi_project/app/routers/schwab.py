@@ -16,7 +16,8 @@ from ..dependencies import get_current_user
 from ..database import get_db
 from .. import models
 from ..services.schwab_sync_service import SchwabSyncService
-from ..models.schwab_models import SchwabAccount, SchwabPosition
+from .. import models
+from ..models import SchwabAccount, SchwabPosition
 
 router = APIRouter(prefix="/schwab", tags=["schwab"])
 logger = logging.getLogger(__name__)
