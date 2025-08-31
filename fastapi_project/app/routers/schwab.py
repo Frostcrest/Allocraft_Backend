@@ -12,12 +12,12 @@ from urllib.parse import urlencode
 import logging
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
+from sqlalchemy import and_
 from ..dependencies import get_current_user
 from ..database import get_db
 from .. import models
-from ..services.schwab_sync_service import SchwabSyncService
-from .. import models
-from ..models import SchwabAccount, SchwabPosition
+from ..models import User, SchwabAccount, SchwabPosition
+# from ..services.schwab_sync_service import SchwabSyncService  # TODO: Enable when SchwabClient is implemented
 
 router = APIRouter(prefix="/schwab", tags=["schwab"])
 logger = logging.getLogger(__name__)
@@ -222,10 +222,8 @@ async def get_accounts(
     """Get account summaries from database with optional refresh"""
     try:
         if refresh:
-            # Trigger sync first
-            schwab_client = SchwabClient()
-            sync_service = SchwabSyncService(db, schwab_client)
-            await sync_service.sync_all_accounts(force_refresh=True)
+            # TODO: Implement sync functionality when SchwabClient is available
+            logger.warning("Refresh requested but sync service not implemented yet")
         
         # Try to get from database first
         stored_accounts = db.query(SchwabAccount).all()
@@ -240,8 +238,9 @@ async def get_accounts(
             ]
         
         # Fallback to API if no stored accounts
-        schwab_client = SchwabClient()
-        return await schwab_client.get_account_summaries()
+        # schwab_client = SchwabClient()  # TODO: Implement SchwabClient
+        # return await schwab_client.get_account_summaries()
+        return []  # Temporary: return empty list until SchwabClient is implemented
         
     except Exception as e:
         logger.error(f"Error getting accounts: {str(e)}")
@@ -421,13 +420,12 @@ async def get_stored_positions(
 ):
     """Get positions from database with optional fresh sync"""
     try:
-        schwab_client = SchwabClient()
-        sync_service = SchwabSyncService(db, schwab_client)
+        # schwab_client = SchwabClient()  # TODO: Implement SchwabClient
+        # sync_service = SchwabSyncService(db, schwab_client)  # TODO: Implement sync service
         
         if fresh:
-            # Force refresh from Schwab API
-            sync_result = await sync_service.sync_all_accounts(force_refresh=True)
-            logger.info(f"Fresh sync completed: {sync_result}")
+            # TODO: Force refresh from Schwab API when sync service is implemented
+            logger.warning("Fresh sync requested but not implemented yet")
         
         # Get stored positions
         accounts = db.query(SchwabAccount).all()
@@ -465,13 +463,13 @@ async def sync_positions(
 ):
     """Manually trigger position synchronization"""
     try:
-        schwab_client = SchwabClient()
-        sync_service = SchwabSyncService(db, schwab_client)
+        # schwab_client = SchwabClient()  # TODO: Implement SchwabClient
+        # sync_service = SchwabSyncService(db, schwab_client)  # TODO: Implement sync service
         
-        result = await sync_service.sync_all_accounts(force_refresh=force)
+        # result = await sync_service.sync_all_accounts(force_refresh=force)
         return {
-            "message": "Synchronization completed",
-            "result": result
+            "message": "Synchronization not implemented yet",
+            "result": {"status": "pending", "force": force}
         }
         
     except Exception as e:
