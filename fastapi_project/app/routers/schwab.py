@@ -272,10 +272,10 @@ async def get_account_by_hash(
         "Accept": "application/json"
     }
     
-    url = f"{SCHWAB_CONFIG['accounts_url']}/{account_hash}"
+    url = f"{SCHWAB_CONFIG['accounts_url']}/{account_hash}?fields=positions"
     
     logger.info(f"Fetching account details for hash {account_hash}")
-    logger.info(f"Full URL: {url}")
+    logger.info(f"Full URL with positions field: {url}")
     
     async with httpx.AsyncClient() as client:
         response = await client.get(url, headers=headers)
