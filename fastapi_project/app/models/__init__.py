@@ -1,2 +1,2 @@
 # This file makes the models directory a Python package
-# Individual model imports are handled in main.py to avoid circular imports
+# The Schwab models are imported separately in main.py
