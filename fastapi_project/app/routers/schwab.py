@@ -214,7 +214,7 @@ async def get_accounts(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """Get user's Schwab accounts"""
+    """Get user's Schwab account summaries (returns accountNumber and hashValue)"""
     access_token = await get_user_schwab_token(db, current_user)
     if not access_token:
         raise HTTPException(status_code=401, detail="Not authenticated with Schwab")
@@ -237,9 +237,44 @@ async def get_accounts(
             )
         
         accounts_data = response.json()
-        logger.info(f"Full accounts response: {accounts_data}")
+        logger.info(f"Account summaries response: {accounts_data}")
         
         return accounts_data
+
+@router.get("/accounts/{account_hash}")
+async def get_account_by_hash(
+    account_hash: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Get full account details using account hash"""
+    access_token = await get_user_schwab_token(db, current_user)
+    if not access_token:
+        raise HTTPException(status_code=401, detail="Not authenticated with Schwab")
+    
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Accept": "application/json"
+    }
+    
+    url = f"{SCHWAB_CONFIG['accounts_url']}/{account_hash}"
+    
+    logger.info(f"Fetching account details for hash {account_hash}")
+    logger.info(f"Full URL: {url}")
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, headers=headers)
+        
+        logger.info(f"Account details response status: {response.status_code}")
+        logger.info(f"Account details response content: {response.text}")
+        
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"Failed to fetch account details: {response.text}"
+            )
+        
+        return response.json()
 
 @router.get("/accounts/{account_id}/positions")
 async def get_positions(
