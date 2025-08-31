@@ -153,6 +153,7 @@ async def store_user_schwab_tokens(db: Session, user: models.User, tokens: Dict[
     # Calculate expiration time (Schwab tokens typically expire in 30 minutes)
     expires_in = tokens.get("expires_in", 1800)  # Default 30 minutes
     user.schwab_token_expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
+    user.schwab_account_linked = True  # Mark account as linked
     
     db.commit()
     db.refresh(user)
