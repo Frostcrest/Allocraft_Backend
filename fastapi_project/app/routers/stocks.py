@@ -23,7 +23,7 @@ def read_stocks(db: Session = Depends(get_db), refresh_prices: bool = False, ski
     return crud.get_stocks(db, refresh_prices=refresh_prices, skip=skip, limit=limit)
 
 @router.get("/all-positions")
-def get_all_positions(db: Session = Depends(get_db)):
+def get_all_positions(db: Session = Depends(get_db), current_user: models.User = Depends(require_authenticated_user)):
     """Get all positions from all sources (manual stocks, Schwab positions, etc.) in a unified format."""
     try:
         positions = []
@@ -44,28 +44,34 @@ def get_all_positions(db: Session = Depends(get_db)):
                 "isShort": (stock.shares or 0) < 0
             })
         
-        # Get Schwab positions
+        # Get Schwab positions from database
         schwab_accounts = db.query(models.SchwabAccount).all()
+        schwab_positions_found = False
+        
         for account in schwab_accounts:
             schwab_positions = db.query(models.SchwabPosition).filter(
                 models.SchwabPosition.account_id == account.id,
                 models.SchwabPosition.is_active == True
             ).all()
             
+            if len(schwab_positions) > 0:
+                schwab_positions_found = True
+            
             for pos in schwab_positions:
+                quantity = (pos.long_quantity or 0) - (pos.short_quantity or 0)
                 position_data = {
                     "id": f"schwab_{pos.id}",
                     "symbol": pos.symbol,
-                    "shares": abs(pos.quantity) if pos.asset_type != "OPTION" else None,
+                    "shares": abs(quantity) if pos.asset_type != "OPTION" else 0,
                     "costBasis": pos.average_price or 0,
-                    "marketPrice": pos.market_price or 0,
+                    "marketPrice": (pos.market_value or 0) / abs(quantity) if quantity != 0 else 0,
                     "marketValue": pos.market_value or 0,
-                    "profitLoss": pos.unrealized_pl or 0,
+                    "profitLoss": pos.current_day_profit_loss or 0,
                     "source": "schwab",
                     "accountType": account.account_type,
                     "accountNumber": account.account_number,
                     "isOption": pos.asset_type == "OPTION",
-                    "isShort": pos.quantity < 0
+                    "isShort": quantity < 0
                 }
                 
                 # Add option-specific fields
@@ -75,13 +81,19 @@ def get_all_positions(db: Session = Depends(get_db)):
                         "optionType": pos.option_type,
                         "strikePrice": pos.strike_price,
                         "expirationDate": pos.expiration_date.isoformat() if pos.expiration_date else None,
-                        "contracts": abs(pos.quantity)
+                        "contracts": abs(quantity)
                     })
                 
                 positions.append(position_data)
         
+        # If user has Schwab connected but no positions stored, suggest manual sync
+        sync_suggestion = None
+        if not schwab_positions_found and current_user.schwab_account_linked:
+            sync_suggestion = "Schwab account connected but no positions found in database. Try refreshing your Schwab positions."
+        
         return {
             "positions": positions,
+            "sync_suggestion": sync_suggestion,
             "summary": {
                 "total_positions": len(positions),
                 "manual_positions": len([p for p in positions if p["source"] == "manual"]),

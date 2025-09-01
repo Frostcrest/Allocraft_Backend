@@ -423,15 +423,19 @@ async def get_stored_positions(
     try:
         # Check if we should fetch fresh data from Schwab
         if fresh or not db.query(SchwabAccount).first():
-            logger.info("Fetching fresh data from Schwab API")
-            return await fetch_fresh_positions_from_schwab(db, current_user)
+            logger.info("Fetching fresh data from Schwab API and storing in database")
+            fresh_data = await fetch_fresh_positions_from_schwab(db, current_user)
+            await store_schwab_data_in_database(db, fresh_data, current_user)
+            return fresh_data
         
         # Get stored positions from database
         accounts = db.query(SchwabAccount).all()
         
         if not accounts:
             logger.info("No stored accounts found, fetching from Schwab API")
-            return await fetch_fresh_positions_from_schwab(db, current_user)
+            fresh_data = await fetch_fresh_positions_from_schwab(db, current_user)
+            await store_schwab_data_in_database(db, fresh_data, current_user)
+            return fresh_data
         
         result = []
         for account in accounts:
@@ -471,8 +475,8 @@ async def sync_positions(
         # Fetch fresh data from Schwab
         fresh_data = await fetch_fresh_positions_from_schwab(db, current_user)
         
-        # Store the fresh data in database (optional - you can comment this out if you just want to fetch)
-        # TODO: Implement database storage of synced positions
+        # Store the fresh data in database
+        await store_schwab_data_in_database(db, fresh_data, current_user)
         
         return {
             "message": "Synchronization completed successfully",
@@ -480,9 +484,9 @@ async def sync_positions(
                 "status": "success", 
                 "force": force,
                 "accounts_synced": len(fresh_data),
+                "positions_total": sum(len(account.get("positions", [])) for account in fresh_data),
                 "timestamp": datetime.utcnow().isoformat()
-            },
-            "data": fresh_data
+            }
         }
         
     except Exception as e:
@@ -663,3 +667,104 @@ async def fetch_fresh_positions_from_schwab(db: Session, current_user: User):
         logger.error(f"Error fetching fresh positions: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch positions from Schwab: {str(e)}")
     return result
+
+
+async def store_schwab_data_in_database(db: Session, accounts_data: list, current_user: User):
+    """Store Schwab accounts and positions data in the database"""
+    try:
+        for account_data in accounts_data:
+            account_number = account_data.get("accountNumber")
+            if not account_number:
+                continue
+                
+            # Check if account already exists
+            existing_account = db.query(SchwabAccount).filter(
+                SchwabAccount.account_number == account_number
+            ).first()
+            
+            if not existing_account:
+                # Create new account
+                new_account = SchwabAccount(
+                    account_number=account_number,
+                    hash_value=account_number,  # We'll use account_number as hash for now
+                    account_type=account_data.get("accountType", ""),
+                    total_value=account_data.get("totalValue", 0),
+                    last_synced=datetime.utcnow()
+                )
+                db.add(new_account)
+                db.flush()  # Get the ID
+                account_id = new_account.id
+            else:
+                # Update existing account
+                existing_account.total_value = account_data.get("totalValue", 0)
+                existing_account.last_synced = datetime.utcnow()
+                account_id = existing_account.id
+            
+            # Mark all existing positions as inactive first
+            db.query(SchwabPosition).filter(
+                SchwabPosition.account_id == account_id
+            ).update({"is_active": False})
+            
+            # Add/update positions
+            positions = account_data.get("positions", [])
+            for position_data in positions:
+                symbol = position_data.get("symbol")
+                if not symbol:
+                    continue
+                    
+                # Check if position already exists
+                existing_position = db.query(SchwabPosition).filter(
+                    SchwabPosition.account_id == account_id,
+                    SchwabPosition.symbol == symbol,
+                    SchwabPosition.asset_type == position_data.get("assetType", "EQUITY")
+                ).first()
+                
+                if existing_position:
+                    # Update existing position
+                    existing_position.long_quantity = max(0, position_data.get("quantity", 0))
+                    existing_position.short_quantity = max(0, -position_data.get("quantity", 0))
+                    existing_position.market_value = position_data.get("marketValue", 0)
+                    existing_position.average_price = position_data.get("averagePrice", 0)
+                    existing_position.current_day_profit_loss = position_data.get("unrealizedPL", 0)
+                    existing_position.is_active = True
+                    existing_position.last_updated = datetime.utcnow()
+                    
+                    # Update option-specific fields
+                    if position_data.get("isOption"):
+                        existing_position.underlying_symbol = position_data.get("underlyingSymbol", "")
+                        existing_position.option_type = position_data.get("optionType", "")
+                        existing_position.strike_price = position_data.get("strikePrice", 0)
+                        if position_data.get("expirationDate"):
+                            existing_position.expiration_date = datetime.fromisoformat(position_data["expirationDate"].replace("Z", "+00:00"))
+                else:
+                    # Create new position
+                    new_position = SchwabPosition(
+                        account_id=account_id,
+                        symbol=symbol,
+                        asset_type=position_data.get("assetType", "EQUITY"),
+                        long_quantity=max(0, position_data.get("quantity", 0)),
+                        short_quantity=max(0, -position_data.get("quantity", 0)),
+                        market_value=position_data.get("marketValue", 0),
+                        average_price=position_data.get("averagePrice", 0),
+                        current_day_profit_loss=position_data.get("unrealizedPL", 0),
+                        is_active=True,
+                        last_updated=datetime.utcnow()
+                    )
+                    
+                    # Add option-specific fields
+                    if position_data.get("isOption"):
+                        new_position.underlying_symbol = position_data.get("underlyingSymbol", "")
+                        new_position.option_type = position_data.get("optionType", "")
+                        new_position.strike_price = position_data.get("strikePrice", 0)
+                        if position_data.get("expirationDate"):
+                            new_position.expiration_date = datetime.fromisoformat(position_data["expirationDate"].replace("Z", "+00:00"))
+                    
+                    db.add(new_position)
+            
+        db.commit()
+        logger.info(f"Successfully stored Schwab data for {len(accounts_data)} accounts")
+        
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error storing Schwab data: {str(e)}")
+        raise
