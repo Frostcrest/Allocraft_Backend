@@ -22,6 +22,78 @@ def read_stocks(db: Session = Depends(get_db), refresh_prices: bool = False, ski
     """Get stocks with optional price refresh and pagination."""
     return crud.get_stocks(db, refresh_prices=refresh_prices, skip=skip, limit=limit)
 
+@router.get("/all-positions")
+def get_all_positions(db: Session = Depends(get_db)):
+    """Get all positions from all sources (manual stocks, Schwab positions, etc.) in a unified format."""
+    try:
+        positions = []
+        
+        # Get manual stocks
+        manual_stocks = crud.get_stocks(db, refresh_prices=False)
+        for stock in manual_stocks:
+            positions.append({
+                "id": f"stock_{stock.id}",
+                "symbol": stock.ticker,
+                "shares": stock.shares or 0,
+                "costBasis": stock.cost_basis or 0,
+                "marketPrice": stock.current_price or 0,
+                "marketValue": (stock.current_price or 0) * (stock.shares or 0),
+                "profitLoss": ((stock.current_price or 0) - (stock.cost_basis or 0)) * (stock.shares or 0),
+                "source": "manual",
+                "isOption": False,
+                "isShort": (stock.shares or 0) < 0
+            })
+        
+        # Get Schwab positions
+        schwab_accounts = db.query(models.SchwabAccount).all()
+        for account in schwab_accounts:
+            schwab_positions = db.query(models.SchwabPosition).filter(
+                models.SchwabPosition.account_id == account.id,
+                models.SchwabPosition.is_active == True
+            ).all()
+            
+            for pos in schwab_positions:
+                position_data = {
+                    "id": f"schwab_{pos.id}",
+                    "symbol": pos.symbol,
+                    "shares": abs(pos.quantity) if pos.asset_type != "OPTION" else None,
+                    "costBasis": pos.average_price or 0,
+                    "marketPrice": pos.market_price or 0,
+                    "marketValue": pos.market_value or 0,
+                    "profitLoss": pos.unrealized_pl or 0,
+                    "source": "schwab",
+                    "accountType": account.account_type,
+                    "accountNumber": account.account_number,
+                    "isOption": pos.asset_type == "OPTION",
+                    "isShort": pos.quantity < 0
+                }
+                
+                # Add option-specific fields
+                if pos.asset_type == "OPTION":
+                    position_data.update({
+                        "underlyingSymbol": pos.underlying_symbol,
+                        "optionType": pos.option_type,
+                        "strikePrice": pos.strike_price,
+                        "expirationDate": pos.expiration_date.isoformat() if pos.expiration_date else None,
+                        "contracts": abs(pos.quantity)
+                    })
+                
+                positions.append(position_data)
+        
+        return {
+            "positions": positions,
+            "summary": {
+                "total_positions": len(positions),
+                "manual_positions": len([p for p in positions if p["source"] == "manual"]),
+                "schwab_positions": len([p for p in positions if p["source"] == "schwab"]),
+                "equity_positions": len([p for p in positions if not p["isOption"]]),
+                "option_positions": len([p for p in positions if p["isOption"]])
+            }
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching positions: {str(e)}")
+
 @router.post("/", response_model=schemas.StockRead)
 def create_stock(
     stock: schemas.StockCreate,
