@@ -905,6 +905,53 @@ async def load_mock_data(
         raise HTTPException(status_code=500, detail=f"Failed to load mock data: {str(e)}")
 
 
+@router.get("/debug/schema")
+async def debug_schema(db: Session = Depends(get_db)):
+    """
+    Debug endpoint to check database schema and data availability.
+    """
+    try:
+        # Check accounts
+        accounts = db.query(SchwabAccount).all()
+        account_count = len(accounts)
+        
+        # Check positions  
+        positions = db.query(SchwabPosition).all()
+        position_count = len(positions)
+        
+        # Get schema info
+        account_schema = {}
+        position_schema = {}
+        
+        if accounts:
+            sample_account = accounts[0]
+            account_schema = {
+                col.name: str(col.type) for col in SchwabAccount.__table__.columns
+            }
+            
+        if positions:
+            sample_position = positions[0]
+            position_schema = {
+                col.name: str(col.type) for col in SchwabPosition.__table__.columns
+            }
+        
+        return {
+            "database_status": {
+                "account_count": account_count,
+                "position_count": position_count,
+                "has_data": account_count > 0 or position_count > 0
+            },
+            "schemas": {
+                "schwab_account": account_schema,
+                "schwab_position": position_schema
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in debug schema: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Debug error: {str(e)}")
+
+
 @router.get("/export/positions")
 async def export_positions(
     db: Session = Depends(get_db)
@@ -918,8 +965,17 @@ async def export_positions(
         # Get all Schwab accounts (all users)
         accounts = db.query(SchwabAccount).all()
         
+        logger.info(f"Found {len(accounts)} accounts in database")
+        
         if not accounts:
+            logger.warning("No Schwab accounts found in database")
             raise HTTPException(status_code=404, detail="No Schwab accounts found")
+        
+        # Log available account attributes for debugging
+        if accounts:
+            sample_account = accounts[0]
+            account_attrs = [attr for attr in dir(sample_account) if not attr.startswith('_')]
+            logger.info(f"Available SchwabAccount attributes: {account_attrs}")
         
         export_data = {
             "export_info": {
@@ -937,35 +993,61 @@ async def export_positions(
                 SchwabPosition.account_id == account.id
             ).all()
             
+            logger.info(f"Account {account.account_number}: Found {len(positions)} positions")
+            
+            # Log available position attributes for debugging (first position only)
+            if positions:
+                sample_position = positions[0]
+                position_attrs = [attr for attr in dir(sample_position) if not attr.startswith('_')]
+                logger.info(f"Available SchwabPosition attributes: {position_attrs}")
+            
+            # Use only fields that actually exist in the SchwabAccount model
             account_data = {
                 "account_number": account.account_number,
                 "account_type": account.account_type,
                 "hash_value": account.hash_value,
                 "is_day_trader": account.is_day_trader,
-                "is_closing_only_restricted": account.is_closing_only_restricted,
+                # Note: is_closing_only_restricted field doesn't exist in model, skipping
                 "buying_power": float(account.buying_power) if account.buying_power else 0.0,
                 "cash_balance": float(account.cash_balance) if account.cash_balance else 0.0,
+                "total_value": float(account.total_value) if hasattr(account, 'total_value') and account.total_value else 0.0,
+                "day_trading_buying_power": float(account.day_trading_buying_power) if hasattr(account, 'day_trading_buying_power') and account.day_trading_buying_power else 0.0,
+                "last_synced": account.last_synced.isoformat() if account.last_synced else None,
                 "total_positions": len(positions),
                 "positions": []
             }
             
             for position in positions:
+                # Use only fields that actually exist in the SchwabPosition model
                 position_data = {
                     "symbol": position.symbol,
-                    "quantity": float(position.quantity),
+                    # Calculate total quantity from long/short quantities
+                    "quantity": float((position.long_quantity or 0) - (position.short_quantity or 0)),
+                    "long_quantity": float(position.long_quantity) if position.long_quantity else 0.0,
+                    "short_quantity": float(position.short_quantity) if position.short_quantity else 0.0,
                     "market_value": float(position.market_value) if position.market_value else 0.0,
                     "average_price": float(position.average_price) if position.average_price else 0.0,
-                    "day_change": float(position.day_change) if position.day_change else 0.0,
-                    "day_change_percent": float(position.day_change_percent) if position.day_change_percent else 0.0,
-                    "position_type": position.position_type,
+                    "average_long_price": float(position.average_long_price) if position.average_long_price else 0.0,
+                    "average_short_price": float(position.average_short_price) if position.average_short_price else 0.0,
+                    # Map model fields to expected export fields
+                    "day_change": float(position.current_day_profit_loss) if position.current_day_profit_loss else 0.0,
+                    "day_change_percent": float(position.current_day_profit_loss_percentage) if position.current_day_profit_loss_percentage else 0.0,
                     "asset_type": position.asset_type,
-                    "schwab_position_id": position.schwab_position_id,
+                    # Note: position_type and schwab_position_id don't exist in model
+                    "instrument_cusip": position.instrument_cusip,
                     "last_updated": position.last_updated.isoformat() if position.last_updated else None,
+                    "is_active": position.is_active if hasattr(position, 'is_active') else True,
                     # Option-specific fields
                     "underlying_symbol": position.underlying_symbol,
                     "option_type": position.option_type,
                     "strike_price": float(position.strike_price) if position.strike_price else None,
-                    "expiration_date": position.expiration_date.isoformat() if position.expiration_date else None
+                    "expiration_date": position.expiration_date.isoformat() if position.expiration_date else None,
+                    # Additional fields from model
+                    "settled_long_quantity": float(position.settled_long_quantity) if position.settled_long_quantity else 0.0,
+                    "settled_short_quantity": float(position.settled_short_quantity) if position.settled_short_quantity else 0.0,
+                    "long_open_profit_loss": float(position.long_open_profit_loss) if position.long_open_profit_loss else 0.0,
+                    "short_open_profit_loss": float(position.short_open_profit_loss) if position.short_open_profit_loss else 0.0,
+                    "raw_data": position.raw_data
                 }
                 
                 account_data["positions"].append(position_data)
@@ -995,22 +1077,18 @@ async def import_positions(
     Use this on development to import real Schwab data exported from production.
     """
     try:
+        logger.info(f"Starting import for user {current_user.email}")
+        
         if "accounts" not in import_data or "export_info" not in import_data:
             raise HTTPException(status_code=400, detail="Invalid import data format")
         
-        # Clear existing positions for this user to avoid duplicates
-        existing_accounts = db.query(SchwabAccount).filter(
-            SchwabAccount.user_id == current_user.id
-        ).all()
+        logger.info(f"Import data contains {len(import_data['accounts'])} accounts")
         
-        for account in existing_accounts:
-            # Delete positions first (foreign key constraint)
-            db.query(SchwabPosition).filter(
-                SchwabPosition.account_id == account.id
-            ).delete()
-            # Then delete the account
-            db.delete(account)
-        
+        # Clear existing Schwab data for ALL users (since export doesn't have user_id)
+        # Note: This is appropriate for development environment data seeding
+        logger.info("Clearing existing Schwab data...")
+        db.query(SchwabPosition).delete()
+        db.query(SchwabAccount).delete()
         db.commit()
         
         imported_accounts = 0
@@ -1018,17 +1096,21 @@ async def import_positions(
         
         # Import accounts and positions
         for account_data in import_data["accounts"]:
-            # Create new account
+            logger.info(f"Importing account: {account_data['account_number']}")
+            
+            # Create new account using only fields that exist in the model
             new_account = SchwabAccount(
-                user_id=current_user.id,
                 account_number=account_data["account_number"],
                 account_type=account_data.get("account_type", ""),
                 hash_value=account_data.get("hash_value", ""),
                 is_day_trader=account_data.get("is_day_trader", False),
-                is_closing_only_restricted=account_data.get("is_closing_only_restricted", False),
+                # Note: user_id field doesn't exist in current model
+                # Note: is_closing_only_restricted field doesn't exist in current model
                 buying_power=account_data.get("buying_power", 0.0),
                 cash_balance=account_data.get("cash_balance", 0.0),
-                last_updated=datetime.utcnow()
+                total_value=account_data.get("total_value", 0.0),
+                day_trading_buying_power=account_data.get("day_trading_buying_power", 0.0),
+                last_synced=datetime.utcnow()
             )
             
             db.add(new_account)
@@ -1036,32 +1118,47 @@ async def import_positions(
             imported_accounts += 1
             
             # Import positions for this account
+            position_count = len(account_data.get("positions", []))
+            logger.info(f"Importing {position_count} positions for account {account_data['account_number']}")
+            
             for position_data in account_data.get("positions", []):
+                # Create position using only fields that exist in the model
                 new_position = SchwabPosition(
                     account_id=new_account.id,
                     symbol=position_data["symbol"],
-                    quantity=position_data.get("quantity", 0.0),
+                    instrument_cusip=position_data.get("instrument_cusip"),
+                    asset_type=position_data.get("asset_type", ""),
+                    # Map quantities correctly
+                    long_quantity=position_data.get("long_quantity", 0.0),
+                    short_quantity=position_data.get("short_quantity", 0.0),
+                    settled_long_quantity=position_data.get("settled_long_quantity", 0.0),
+                    settled_short_quantity=position_data.get("settled_short_quantity", 0.0),
                     market_value=position_data.get("market_value", 0.0),
                     average_price=position_data.get("average_price", 0.0),
-                    day_change=position_data.get("day_change", 0.0),
-                    day_change_percent=position_data.get("day_change_percent", 0.0),
-                    position_type=position_data.get("position_type", ""),
-                    asset_type=position_data.get("asset_type", ""),
-                    schwab_position_id=position_data.get("schwab_position_id", ""),
+                    average_long_price=position_data.get("average_long_price", 0.0),
+                    average_short_price=position_data.get("average_short_price", 0.0),
+                    # Map profit/loss fields
+                    current_day_profit_loss=position_data.get("day_change", 0.0),
+                    current_day_profit_loss_percentage=position_data.get("day_change_percent", 0.0),
+                    long_open_profit_loss=position_data.get("long_open_profit_loss", 0.0),
+                    short_open_profit_loss=position_data.get("short_open_profit_loss", 0.0),
+                    # Option-specific fields
+                    underlying_symbol=position_data.get("underlying_symbol"),
+                    option_type=position_data.get("option_type"),
+                    strike_price=position_data.get("strike_price"),
+                    is_active=position_data.get("is_active", True),
+                    raw_data=position_data.get("raw_data"),
                     last_updated=datetime.utcnow()
                 )
                 
-                # Handle option-specific fields
-                if position_data.get("underlying_symbol"):
-                    new_position.underlying_symbol = position_data["underlying_symbol"]
-                if position_data.get("option_type"):
-                    new_position.option_type = position_data["option_type"]
-                if position_data.get("strike_price"):
-                    new_position.strike_price = position_data["strike_price"]
+                # Handle expiration date
                 if position_data.get("expiration_date"):
-                    new_position.expiration_date = datetime.fromisoformat(
-                        position_data["expiration_date"].replace("Z", "+00:00")
-                    )
+                    try:
+                        new_position.expiration_date = datetime.fromisoformat(
+                            position_data["expiration_date"].replace("Z", "+00:00")
+                        )
+                    except (ValueError, AttributeError):
+                        logger.warning(f"Invalid expiration date format: {position_data.get('expiration_date')}")
                 
                 db.add(new_position)
                 imported_positions += 1
@@ -1070,15 +1167,13 @@ async def import_positions(
         
         result = {
             "message": "Positions imported successfully",
-            "result": {
-                "source_export": import_data["export_info"],
-                "accounts_imported": imported_accounts,
-                "positions_imported": imported_positions,
-                "import_timestamp": datetime.utcnow().isoformat()
-            }
+            "accounts_created": imported_accounts,
+            "positions_created": imported_positions,
+            "import_timestamp": datetime.utcnow().isoformat(),
+            "source_export": import_data["export_info"]
         }
         
-        logger.info(f"Imported {imported_accounts} accounts with {imported_positions} positions for user {current_user.email}")
+        logger.info(f"Successfully imported {imported_accounts} accounts with {imported_positions} positions")
         
         return result
         
