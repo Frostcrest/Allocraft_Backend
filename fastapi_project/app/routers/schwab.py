@@ -17,6 +17,7 @@ from ..dependencies import get_current_user
 from ..database import get_db
 from .. import models
 from ..models import User, SchwabAccount, SchwabPosition
+from ..services.mock_data_service import MockDataService
 # from ..services.schwab_sync_service import SchwabSyncService  # TODO: Enable when SchwabClient is implemented
 
 router = APIRouter(prefix="/schwab", tags=["schwab"])
@@ -768,3 +769,128 @@ async def store_schwab_data_in_database(db: Session, accounts_data: list, curren
         db.rollback()
         logger.error(f"Error storing Schwab data: {str(e)}")
         raise
+
+# ========================================
+# MOCK DATA ENDPOINTS FOR DEVELOPMENT
+# ========================================
+
+@router.get("/mock/positions")
+async def get_mock_positions(
+    current_user: User = Depends(get_current_user)
+):
+    """Get mock positions for development (matches exact Schwab API structure)"""
+    logger.info(f"Serving mock positions for development user {current_user.id}")
+    return MockDataService.generate_mock_accounts_with_positions()
+
+@router.post("/mock/sync")
+async def mock_sync_positions(
+    current_user: User = Depends(get_current_user)
+):
+    """Mock synchronization endpoint for development"""
+    logger.info(f"Mock sync requested by user {current_user.id}")
+    return MockDataService.generate_mock_sync_response()
+
+@router.get("/mock/sync-status")
+async def get_mock_sync_status(
+    current_user: User = Depends(get_current_user)
+):
+    """Get mock sync status for development"""
+    return MockDataService.generate_mock_sync_status()
+
+@router.post("/mock/load-data")
+async def load_mock_data(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Load mock data into database for development (creates mock accounts and positions)"""
+    try:
+        logger.info(f"Loading mock data for user {current_user.id}")
+        
+        # Get mock data
+        mock_accounts = MockDataService.generate_mock_accounts_with_positions()
+        
+        # Clear existing mock data for this user
+        existing_accounts = db.query(SchwabAccount).filter(
+            SchwabAccount.account_number.like("MOCK_%")
+        ).all()
+        
+        for account in existing_accounts:
+            # Delete positions first
+            db.query(SchwabPosition).filter(
+                SchwabPosition.account_id == account.id
+            ).delete()
+            # Delete account
+            db.delete(account)
+        
+        # Create mock accounts and positions
+        created_accounts = 0
+        created_positions = 0
+        
+        for account_data in mock_accounts:
+            # Create mock account
+            mock_account = SchwabAccount(
+                account_number=f"MOCK_{account_data['accountNumber']}",
+                hash_value=f"mock_hash_{account_data['accountNumber']}",
+                account_type=account_data["accountType"],
+                is_day_trader=False,
+                last_synced=datetime.utcnow(),
+                cash_balance=25000.0,
+                buying_power=50000.0,
+                total_value=account_data["totalValue"],
+                day_trading_buying_power=0.0
+            )
+            db.add(mock_account)
+            db.flush()  # Get the ID
+            created_accounts += 1
+            
+            # Create positions for this account
+            for pos_data in account_data["positions"]:
+                mock_position = SchwabPosition(
+                    account_id=mock_account.id,
+                    symbol=pos_data["symbol"],
+                    instrument_cusip=f"mock_cusip_{pos_data['symbol']}",
+                    asset_type=pos_data["assetType"],
+                    long_quantity=pos_data["quantity"] if not pos_data.get("isShort", False) else 0.0,
+                    short_quantity=pos_data["quantity"] if pos_data.get("isShort", False) else 0.0,
+                    settled_long_quantity=pos_data["quantity"] if not pos_data.get("isShort", False) else 0.0,
+                    settled_short_quantity=pos_data["quantity"] if pos_data.get("isShort", False) else 0.0,
+                    market_value=pos_data["marketValue"],
+                    average_price=pos_data["averagePrice"],
+                    average_long_price=pos_data["averagePrice"] if not pos_data.get("isShort", False) else 0.0,
+                    average_short_price=pos_data["averagePrice"] if pos_data.get("isShort", False) else 0.0,
+                    current_day_profit_loss=pos_data["profitLoss"],
+                    current_day_profit_loss_percentage=pos_data["profitLossPercentage"],
+                    long_open_profit_loss=pos_data["profitLoss"] if not pos_data.get("isShort", False) else 0.0,
+                    short_open_profit_loss=pos_data["profitLoss"] if pos_data.get("isShort", False) else 0.0,
+                    last_updated=datetime.utcnow(),
+                    is_active=True
+                )
+                
+                # Add option-specific fields
+                if pos_data.get("isOption"):
+                    mock_position.underlying_symbol = pos_data.get("underlyingSymbol", "")
+                    mock_position.option_type = pos_data.get("optionType", "")
+                    mock_position.strike_price = pos_data.get("strikePrice", 0.0)
+                    if pos_data.get("expirationDate"):
+                        mock_position.expiration_date = datetime.fromisoformat(
+                            pos_data["expirationDate"].replace("Z", "+00:00")
+                        )
+                
+                db.add(mock_position)
+                created_positions += 1
+        
+        db.commit()
+        
+        return {
+            "message": "Mock data loaded successfully",
+            "result": {
+                "accounts_created": created_accounts,
+                "positions_created": created_positions,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        }
+        
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error loading mock data: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to load mock data: {str(e)}")
