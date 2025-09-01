@@ -775,41 +775,47 @@ async def store_schwab_data_in_database(db: Session, accounts_data: list, curren
 # ========================================
 
 @router.get("/mock/positions")
-async def get_mock_positions(
-    current_user: User = Depends(get_current_user)
-):
+async def get_mock_positions():
     """Get mock positions for development (matches exact Schwab API structure)"""
-    logger.info(f"Serving mock positions for development user {current_user.id}")
+    logger.info("Serving mock positions for development")
     return MockDataService.generate_mock_accounts_with_positions()
 
 @router.post("/mock/sync")
-async def mock_sync_positions(
-    current_user: User = Depends(get_current_user)
-):
+async def mock_sync_positions():
     """Mock synchronization endpoint for development"""
-    logger.info(f"Mock sync requested by user {current_user.id}")
+    logger.info("Mock sync requested for development")
     return MockDataService.generate_mock_sync_response()
 
 @router.get("/mock/sync-status")
-async def get_mock_sync_status(
-    current_user: User = Depends(get_current_user)
-):
+async def get_mock_sync_status():
     """Get mock sync status for development"""
     return MockDataService.generate_mock_sync_status()
 
 @router.post("/mock/load-data")
 async def load_mock_data(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db)
 ):
     """Load mock data into database for development (creates mock accounts and positions)"""
     try:
-        logger.info(f"Loading mock data for user {current_user.id}")
+        logger.info("🎭 MOCK DATA ENDPOINT CALLED - Loading mock data for development")
+        print("🎭 MOCK DATA ENDPOINT CALLED - Loading mock data for development")
+        
+        # For development, we'll create or use a mock user
+        mock_user = db.query(User).filter(User.email == "mock@dev.local").first()
+        if not mock_user:
+            mock_user = User(
+                username="mock_dev_user",
+                email="mock@dev.local",
+                hashed_password="mock_password_hash"
+            )
+            db.add(mock_user)
+            db.commit()
+            db.refresh(mock_user)
         
         # Get mock data
         mock_accounts = MockDataService.generate_mock_accounts_with_positions()
         
-        # Clear existing mock data for this user
+        # Clear existing mock data for this user (clear ALL mock accounts, not just those matching pattern)
         existing_accounts = db.query(SchwabAccount).filter(
             SchwabAccount.account_number.like("MOCK_%")
         ).all()
@@ -821,6 +827,9 @@ async def load_mock_data(
             ).delete()
             # Delete account
             db.delete(account)
+        
+        # Commit the deletions before adding new data
+        db.commit()
         
         # Create mock accounts and positions
         created_accounts = 0
@@ -894,3 +903,190 @@ async def load_mock_data(
         db.rollback()
         logger.error(f"Error loading mock data: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to load mock data: {str(e)}")
+
+
+@router.get("/export/positions")
+async def export_positions(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Export all Schwab accounts and positions to a JSON file format.
+    Use this on production to export real Schwab data for development use.
+    """
+    try:
+        # Get all Schwab accounts for this user
+        accounts = db.query(SchwabAccount).filter(
+            SchwabAccount.user_id == current_user.id
+        ).all()
+        
+        if not accounts:
+            raise HTTPException(status_code=404, detail="No Schwab accounts found")
+        
+        export_data = {
+            "export_info": {
+                "user_id": current_user.id,
+                "user_email": current_user.email,
+                "export_timestamp": datetime.utcnow().isoformat(),
+                "total_accounts": len(accounts)
+            },
+            "accounts": []
+        }
+        
+        total_positions = 0
+        
+        for account in accounts:
+            # Get all positions for this account
+            positions = db.query(SchwabPosition).filter(
+                SchwabPosition.account_id == account.id
+            ).all()
+            
+            account_data = {
+                "account_number": account.account_number,
+                "account_type": account.account_type,
+                "hash_value": account.hash_value,
+                "is_day_trader": account.is_day_trader,
+                "is_closing_only_restricted": account.is_closing_only_restricted,
+                "buying_power": float(account.buying_power) if account.buying_power else 0.0,
+                "cash_balance": float(account.cash_balance) if account.cash_balance else 0.0,
+                "total_positions": len(positions),
+                "positions": []
+            }
+            
+            for position in positions:
+                position_data = {
+                    "symbol": position.symbol,
+                    "quantity": float(position.quantity),
+                    "market_value": float(position.market_value) if position.market_value else 0.0,
+                    "average_price": float(position.average_price) if position.average_price else 0.0,
+                    "day_change": float(position.day_change) if position.day_change else 0.0,
+                    "day_change_percent": float(position.day_change_percent) if position.day_change_percent else 0.0,
+                    "position_type": position.position_type,
+                    "asset_type": position.asset_type,
+                    "schwab_position_id": position.schwab_position_id,
+                    "last_updated": position.last_updated.isoformat() if position.last_updated else None,
+                    # Option-specific fields
+                    "underlying_symbol": position.underlying_symbol,
+                    "option_type": position.option_type,
+                    "strike_price": float(position.strike_price) if position.strike_price else None,
+                    "expiration_date": position.expiration_date.isoformat() if position.expiration_date else None
+                }
+                
+                account_data["positions"].append(position_data)
+                total_positions += 1
+            
+            export_data["accounts"].append(account_data)
+        
+        export_data["export_info"]["total_positions"] = total_positions
+        
+        logger.info(f"Exported {len(accounts)} accounts with {total_positions} positions for user {current_user.email}")
+        
+        return export_data
+        
+    except Exception as e:
+        logger.error(f"Error exporting positions: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to export positions: {str(e)}")
+
+
+@router.post("/import/positions")
+async def import_positions(
+    import_data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Import positions from an exported JSON file.
+    Use this on development to import real Schwab data exported from production.
+    """
+    try:
+        if "accounts" not in import_data or "export_info" not in import_data:
+            raise HTTPException(status_code=400, detail="Invalid import data format")
+        
+        # Clear existing positions for this user to avoid duplicates
+        existing_accounts = db.query(SchwabAccount).filter(
+            SchwabAccount.user_id == current_user.id
+        ).all()
+        
+        for account in existing_accounts:
+            # Delete positions first (foreign key constraint)
+            db.query(SchwabPosition).filter(
+                SchwabPosition.account_id == account.id
+            ).delete()
+            # Then delete the account
+            db.delete(account)
+        
+        db.commit()
+        
+        imported_accounts = 0
+        imported_positions = 0
+        
+        # Import accounts and positions
+        for account_data in import_data["accounts"]:
+            # Create new account
+            new_account = SchwabAccount(
+                user_id=current_user.id,
+                account_number=account_data["account_number"],
+                account_type=account_data.get("account_type", ""),
+                hash_value=account_data.get("hash_value", ""),
+                is_day_trader=account_data.get("is_day_trader", False),
+                is_closing_only_restricted=account_data.get("is_closing_only_restricted", False),
+                buying_power=account_data.get("buying_power", 0.0),
+                cash_balance=account_data.get("cash_balance", 0.0),
+                last_updated=datetime.utcnow()
+            )
+            
+            db.add(new_account)
+            db.flush()  # Get the account ID
+            imported_accounts += 1
+            
+            # Import positions for this account
+            for position_data in account_data.get("positions", []):
+                new_position = SchwabPosition(
+                    account_id=new_account.id,
+                    symbol=position_data["symbol"],
+                    quantity=position_data.get("quantity", 0.0),
+                    market_value=position_data.get("market_value", 0.0),
+                    average_price=position_data.get("average_price", 0.0),
+                    day_change=position_data.get("day_change", 0.0),
+                    day_change_percent=position_data.get("day_change_percent", 0.0),
+                    position_type=position_data.get("position_type", ""),
+                    asset_type=position_data.get("asset_type", ""),
+                    schwab_position_id=position_data.get("schwab_position_id", ""),
+                    last_updated=datetime.utcnow()
+                )
+                
+                # Handle option-specific fields
+                if position_data.get("underlying_symbol"):
+                    new_position.underlying_symbol = position_data["underlying_symbol"]
+                if position_data.get("option_type"):
+                    new_position.option_type = position_data["option_type"]
+                if position_data.get("strike_price"):
+                    new_position.strike_price = position_data["strike_price"]
+                if position_data.get("expiration_date"):
+                    new_position.expiration_date = datetime.fromisoformat(
+                        position_data["expiration_date"].replace("Z", "+00:00")
+                    )
+                
+                db.add(new_position)
+                imported_positions += 1
+        
+        db.commit()
+        
+        result = {
+            "message": "Positions imported successfully",
+            "result": {
+                "source_export": import_data["export_info"],
+                "accounts_imported": imported_accounts,
+                "positions_imported": imported_positions,
+                "import_timestamp": datetime.utcnow().isoformat()
+            }
+        }
+        
+        logger.info(f"Imported {imported_accounts} accounts with {imported_positions} positions for user {current_user.email}")
+        
+        return result
+        
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error importing positions: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to import positions: {str(e)}")

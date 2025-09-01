@@ -57,7 +57,8 @@ def snapshot(db: Session = Depends(get_db)) -> Dict[str, Any]:
         options_invested_basis += contracts * float(o.cost_basis or 0.0) * 100.0
 
     # Wheels metrics
-    open_cycles_q = db.query(models.WheelCycle).filter(models.WheelCycle.status == "Open")
+    # Note: WheelCycle model doesn't have status field, so getting all cycles for now
+    open_cycles_q = db.query(models.WheelCycle)
     open_cycles = open_cycles_q.all()
     cycle_ids = [c.id for c in open_cycles]
     total_collateral = 0.0
