@@ -907,26 +907,22 @@ async def load_mock_data(
 
 @router.get("/export/positions")
 async def export_positions(
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Export all Schwab accounts and positions to a JSON file format.
     Use this on production to export real Schwab data for development use.
+    No authentication required - exports all accounts/positions.
     """
     try:
-        # Get all Schwab accounts for this user
-        accounts = db.query(SchwabAccount).filter(
-            SchwabAccount.user_id == current_user.id
-        ).all()
+        # Get all Schwab accounts (all users)
+        accounts = db.query(SchwabAccount).all()
         
         if not accounts:
             raise HTTPException(status_code=404, detail="No Schwab accounts found")
         
         export_data = {
             "export_info": {
-                "user_id": current_user.id,
-                "user_email": current_user.email,
                 "export_timestamp": datetime.utcnow().isoformat(),
                 "total_accounts": len(accounts)
             },
@@ -979,7 +975,7 @@ async def export_positions(
         
         export_data["export_info"]["total_positions"] = total_positions
         
-        logger.info(f"Exported {len(accounts)} accounts with {total_positions} positions for user {current_user.email}")
+        logger.info(f"Exported {len(accounts)} accounts with {total_positions} positions")
         
         return export_data
         
