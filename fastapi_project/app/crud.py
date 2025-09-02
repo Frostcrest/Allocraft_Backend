@@ -398,7 +398,15 @@ def get_wheel_cycle(db: Session, cycle_id: int):
     return db.query(models.WheelCycle).filter(models.WheelCycle.id == cycle_id).first()
 
 def create_wheel_cycle(db: Session, payload: schemas.WheelCycleCreate):
-    cycle = models.WheelCycle(**payload.model_dump())
+    import json
+    # Convert the payload to dict and handle JSON serialization
+    cycle_data = payload.model_dump()
+    
+    # Convert detection_metadata dict to JSON string for storage
+    if cycle_data.get('detection_metadata'):
+        cycle_data['detection_metadata'] = json.dumps(cycle_data['detection_metadata'])
+    
+    cycle = models.WheelCycle(**cycle_data)
     db.add(cycle)
     db.commit()
     db.refresh(cycle)

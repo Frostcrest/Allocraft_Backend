@@ -1,6 +1,6 @@
 # Simple models stub to fix immediate import issues
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean
-from datetime import datetime
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, Date, Text
+from datetime import datetime, date
 
 # Import the Base from the database module
 try:
@@ -69,7 +69,13 @@ class WheelStrategy(Base):
 class WheelCycle(Base):
     __tablename__ = "wheel_cycles"
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String)
+    cycle_key = Column(String, unique=True, index=True)
+    ticker = Column(String, index=True)
+    started_at = Column(Date, nullable=True)
+    status = Column(String, default="Open")
+    notes = Column(Text, nullable=True)
+    strategy_type = Column(String, nullable=True)
+    detection_metadata = Column(Text, nullable=True)  # JSON stored as text
 
 class WheelEvent(Base):
     __tablename__ = "wheel_events"

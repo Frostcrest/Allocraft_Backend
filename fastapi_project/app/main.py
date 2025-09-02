@@ -50,6 +50,7 @@ origins = [
     "http://localhost:5173",
     "http://localhost:5174", 
     "http://localhost:5175",
+    "http://localhost:8001",
     "https://allocraft.app",
     "https://www.allocraft.app"
 ]
@@ -109,7 +110,7 @@ def _ensure_default_admin():
 _ensure_default_admin()
 
 # --- Routers ---
-from .routers import stocks, options, wheels, tickers, auth, users, importer, dashboard, schwab, portfolio_fast, stocks_fast  # noqa: E402
+from .routers import stocks, options, wheels, tickers, auth, users, importer, dashboard, schwab, portfolio_fast, portfolio, stocks_fast  # noqa: E402
 
 app.include_router(auth.router)
 app.include_router(stocks.router)
@@ -120,6 +121,7 @@ app.include_router(users.router)
 app.include_router(importer.router)
 app.include_router(dashboard.router)
 app.include_router(schwab.router)
+app.include_router(portfolio.router)  # Portfolio import/export
 app.include_router(portfolio_fast.router)  # Fast unified portfolio with progress tracking
 app.include_router(stocks_fast.router)  # Ultra-fast stocks endpoint
 

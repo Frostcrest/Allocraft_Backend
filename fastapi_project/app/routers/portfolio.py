@@ -12,6 +12,7 @@ import logging
 
 from app.database import get_db
 from app.models_unified import Account, Position
+from app.utils.option_parser import parse_option_symbol
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
@@ -91,6 +92,24 @@ async def import_positions(
                     # For stocks/ETFs, underlying = symbol
                     underlying_symbol = position_data["symbol"]
                 
+                # Parse option details if this is an option and fields are missing
+                option_type = position_data.get("option_type")
+                strike_price = position_data.get("strike_price")
+                expiration_date_str = position_data.get("expiration_date")
+                
+                if position_data.get("asset_type") == "OPTION":
+                    # Try to parse option symbol if any fields are missing
+                    if not option_type or not strike_price or not expiration_date_str:
+                        parsed_option = parse_option_symbol(position_data["symbol"])
+                        if parsed_option:
+                            option_type = option_type or parsed_option.get("option_type")
+                            strike_price = strike_price or parsed_option.get("strike_price")
+                            if not expiration_date_str and parsed_option.get("expiry_date"):
+                                expiration_date_str = parsed_option.get("expiry_date")
+                            
+                            logger.info(f"Parsed option symbol {position_data['symbol']}: "
+                                      f"type={option_type}, strike=${strike_price}, exp={expiration_date_str}")
+                
                 # Create unified position
                 new_position = Position(
                     account_id=new_account.id,
@@ -102,8 +121,8 @@ async def import_positions(
                     instrument_cusip=position_data.get("instrument_cusip"),
                     
                     # Option-specific fields
-                    option_type=position_data.get("option_type"),
-                    strike_price=position_data.get("strike_price"),
+                    option_type=option_type,
+                    strike_price=strike_price,
                     
                     # Quantities
                     long_quantity=position_data.get("long_quantity", 0.0),
@@ -132,13 +151,19 @@ async def import_positions(
                 )
                 
                 # Handle expiration date
-                if position_data.get("expiration_date"):
+                if expiration_date_str:
                     try:
-                        new_position.expiration_date = datetime.fromisoformat(
-                            position_data["expiration_date"].replace("Z", "+00:00")
-                        )
-                    except (ValueError, AttributeError):
-                        logger.warning(f"Invalid expiration date: {position_data.get('expiration_date')}")
+                        # Handle different date formats
+                        if "T" in expiration_date_str or "Z" in expiration_date_str:
+                            # ISO format with time
+                            new_position.expiration_date = datetime.fromisoformat(
+                                expiration_date_str.replace("Z", "+00:00")
+                            )
+                        else:
+                            # Simple date format (YYYY-MM-DD)
+                            new_position.expiration_date = datetime.fromisoformat(expiration_date_str)
+                    except (ValueError, AttributeError) as e:
+                        logger.warning(f"Invalid expiration date: {expiration_date_str}, error: {e}")
                 
                 db.add(new_position)
                 imported_positions += 1
@@ -206,7 +231,7 @@ async def get_positions(
         
         positions = query.all()
         
-        return [
+        position_data = [
             {
                 "id": pos.id,
                 "account_id": pos.account_id,
@@ -228,6 +253,12 @@ async def get_positions(
             for pos in positions
         ]
         
+        # Return in the format expected by frontend
+        return {
+            "total_positions": len(position_data),
+            "positions": position_data
+        }
+        
     except Exception as e:
         logger.error(f"Error getting positions: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -236,13 +267,15 @@ async def get_positions(
 @router.get("/positions/stocks")
 async def get_stock_positions(db: Session = Depends(get_db)):
     """Get only stock positions (EQUITY) - legacy compatibility"""
-    return await get_positions(asset_type="EQUITY", db=db)
+    result = await get_positions(asset_type="EQUITY", db=db)
+    return result["positions"]  # Return just the array for legacy compatibility
 
 
 @router.get("/positions/options")
 async def get_option_positions(db: Session = Depends(get_db)):
     """Get only option positions - legacy compatibility"""
-    return await get_positions(asset_type="OPTION", db=db)
+    result = await get_positions(asset_type="OPTION", db=db)
+    return result["positions"]  # Return just the array for legacy compatibility
 
 
 @router.post("/sync/schwab")
