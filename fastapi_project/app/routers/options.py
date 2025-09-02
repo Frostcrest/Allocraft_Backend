@@ -68,7 +68,8 @@ def read_options(db: Session = Depends(get_db), refresh_prices: bool = False):
                 "cost_basis": pos.average_price or 0.0,
                 "market_price_per_contract": pos.current_price or 0.0,
                 "status": pos.status or "Open",
-                "current_price": pos.current_price or 0.0
+                "current_price": pos.current_price or 0.0,
+                "price_last_updated": pos.price_last_updated.isoformat() if pos.price_last_updated else None
             }
             options.append(option_data)
         
@@ -137,3 +138,83 @@ async def upload_options_csv(file: UploadFile = File(...), db: Session = Depends
             continue
     db.commit()
     return {"created": len(created)}
+
+@router.post("/refresh-prices")
+def refresh_option_prices(db: Session = Depends(get_db)):
+    """Refresh current prices for all active option positions."""
+    try:
+        # Import unified models and price service
+        from ..models_unified import Position
+        from ..services.price_service import fetch_option_contract_price
+        from ..utils.option_parser import parse_option_symbol
+        from datetime import datetime, UTC
+        
+        # Get all active option positions
+        option_positions = db.query(Position).filter(
+            Position.asset_type == "OPTION",
+            Position.is_active == True
+        ).all()
+        
+        if not option_positions:
+            return {"updated": 0, "failed": 0, "message": "No active option positions found"}
+        
+        updated_count = 0
+        failed_count = 0
+        failed_symbols = []
+        
+        # Process each option position
+        for position in option_positions:
+            try:
+                # Parse the option symbol to get required parameters
+                parsed = parse_option_symbol(position.symbol)
+                
+                if not parsed:
+                    failed_count += 1
+                    failed_symbols.append(f"{position.symbol}: Could not parse symbol")
+                    continue
+                
+                # Extract required parameters
+                ticker = parsed['ticker']
+                expiry_date = parsed['expiry_date'] 
+                option_type = parsed['option_type']
+                strike_price = parsed['strike_price']
+                
+                # Fetch current option price
+                current_price = fetch_option_contract_price(
+                    ticker=ticker,
+                    expiry_date=expiry_date,
+                    option_type=option_type,
+                    strike_price=strike_price
+                )
+                
+                if current_price is not None:
+                    # Update the position with current price
+                    position.current_price = current_price
+                    position.price_last_updated = datetime.now(UTC)
+                    updated_count += 1
+                else:
+                    failed_count += 1
+                    failed_symbols.append(f"{position.symbol}: No price data available")
+                    
+            except Exception as e:
+                failed_count += 1
+                failed_symbols.append(f"{position.symbol}: {str(e)}")
+                continue
+        
+        # Commit all updates
+        db.commit()
+        
+        return {
+            "updated": updated_count,
+            "failed": failed_count,
+            "total_positions": len(option_positions),
+            "failed_symbols": failed_symbols[:10] if failed_symbols else [],  # Limit to first 10 for brevity
+            "message": f"Successfully updated {updated_count} of {len(option_positions)} option positions"
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to refresh option prices: {str(e)}"
+        )
