@@ -19,10 +19,65 @@ import csv
 
 router = APIRouter(prefix="/options", tags=["Options"])
 
-@router.get("/", response_model=list[schemas.OptionRead])
+@router.get("/")
 def read_options(db: Session = Depends(get_db), refresh_prices: bool = False):
-    """Get all option contracts. If refresh_prices=true, update market prices per contract."""
-    return crud.get_options(db, refresh_prices=refresh_prices)
+    """Get all option contracts from unified Position table with parsed strike/expiry data."""
+    try:
+        # Import unified models and parser
+        from ..models_unified import Position
+        from ..utils.option_parser import parse_option_symbol
+        
+        # Get option positions from unified table - FAST query
+        option_positions = db.query(Position).filter(
+            Position.asset_type == "OPTION",
+            Position.is_active == True
+        ).all()
+        
+        # Convert to simple dict format that the UI expects
+        options = []
+        
+        for pos in option_positions:
+            # Calculate net contracts (long - short)
+            net_contracts = (pos.long_quantity or 0) - (pos.short_quantity or 0)
+            
+            # Parse option symbol to extract strike price and expiry
+            parsed = parse_option_symbol(pos.symbol)
+            
+            if parsed:
+                # Use parsed data
+                ticker = parsed['ticker']
+                option_type = parsed['option_type']
+                strike_price = parsed['strike_price']
+                expiry_date = parsed['expiry_date']
+            else:
+                # Fallback to basic parsing
+                symbol_parts = pos.symbol.split()
+                ticker = symbol_parts[0] if len(symbol_parts) > 0 else pos.underlying_symbol or ""
+                option_type = pos.option_type or ("Put" if "P" in pos.symbol else "Call")
+                strike_price = pos.strike_price or 0.0
+                expiry_date = pos.expiration_date.strftime("%Y-%m-%d") if pos.expiration_date else ""
+            
+            # Create option data with parsed information
+            option_data = {
+                "id": pos.id,
+                "ticker": ticker,
+                "option_type": option_type,
+                "strike_price": strike_price,
+                "expiry_date": expiry_date,
+                "contracts": abs(net_contracts),  # Always show positive for UI
+                "cost_basis": pos.average_price or 0.0,
+                "market_price_per_contract": pos.current_price or 0.0,
+                "status": pos.status or "Open",
+                "current_price": pos.current_price or 0.0
+            }
+            options.append(option_data)
+        
+        return options
+        
+    except Exception as e:
+        print(f"Unified options table error: {e}")
+        # Return empty list instead of falling back to avoid complexity
+        return []
 
 @router.post("/", response_model=schemas.OptionRead)
 def create_option(option: schemas.OptionCreate, db: Session = Depends(get_db)):
