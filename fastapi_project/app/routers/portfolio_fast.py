@@ -143,6 +143,116 @@ async def get_all_positions(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/stocks")
+async def get_stock_positions(db: Session = Depends(get_db)):
+    """Get all stock positions from unified table"""
+    try:
+        from app.utils.option_parser import parse_option_symbol
+        
+        # Get all stock positions (EQUITY and COLLECTIVE_INVESTMENT)
+        stock_positions = db.query(Position).filter(
+            Position.asset_type.in_(["EQUITY", "COLLECTIVE_INVESTMENT"])
+        ).all()
+        
+        result = []
+        for pos in stock_positions:
+            # Calculate profit/loss
+            market_value = pos.market_value or 0
+            cost_basis = (pos.average_price or 0) * (pos.long_quantity or 0)
+            profit_loss = market_value - cost_basis
+            profit_loss_percent = ((profit_loss / cost_basis) * 100) if cost_basis > 0 else 0
+            
+            result.append({
+                "id": pos.id,
+                "symbol": pos.symbol,
+                "asset_type": pos.asset_type,
+                "long_quantity": pos.long_quantity or 0,
+                "short_quantity": pos.short_quantity or 0,
+                "market_value": market_value,
+                "average_price": pos.average_price or 0,
+                "current_price": pos.current_price or 0,
+                "data_source": pos.data_source,
+                "status": pos.status,
+                "account_id": pos.account_id,
+                "profit_loss": profit_loss,
+                "profit_loss_percent": profit_loss_percent
+            })
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error fetching stock positions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/options")
+async def get_option_positions(db: Session = Depends(get_db)):
+    """Get all option positions from unified table with parsed data"""
+    try:
+        from app.utils.option_parser import parse_option_symbol
+        
+        # Get all option positions
+        option_positions = db.query(Position).filter(
+            Position.asset_type == "OPTION"
+        ).all()
+        
+        result = []
+        for pos in option_positions:
+            # Parse option symbol to get additional details
+            parsed = parse_option_symbol(pos.symbol)
+            
+            # Calculate contracts (positive for long, negative for short)
+            contracts = (pos.long_quantity or 0) - (pos.short_quantity or 0)
+            
+            # Calculate profit/loss
+            market_value = pos.market_value or 0
+            cost_basis = (pos.average_price or 0) * abs(contracts) * 100  # Options are per 100 shares
+            profit_loss = market_value - cost_basis
+            profit_loss_percent = ((profit_loss / cost_basis) * 100) if cost_basis > 0 else 0
+            
+            option_data = {
+                "id": pos.id,
+                "symbol": pos.symbol,
+                "asset_type": pos.asset_type,
+                "long_quantity": pos.long_quantity or 0,
+                "short_quantity": pos.short_quantity or 0,
+                "market_value": market_value,
+                "average_price": pos.average_price or 0,
+                "current_price": pos.current_price or 0,
+                "data_source": pos.data_source,
+                "status": pos.status,
+                "account_id": pos.account_id,
+                "contracts": contracts,
+                "profit_loss": profit_loss,
+                "profit_loss_percent": profit_loss_percent
+            }
+            
+            # Add parsed option details if parsing was successful
+            if parsed:
+                option_data.update({
+                    "ticker": parsed["ticker"],
+                    "option_type": parsed["option_type"],
+                    "strike_price": parsed["strike_price"],
+                    "expiration_date": parsed["expiry_date"]
+                })
+            else:
+                # Fallback values if parsing failed
+                option_data.update({
+                    "ticker": pos.symbol.split()[0] if ' ' in pos.symbol else pos.symbol,
+                    "option_type": "Unknown",
+                    "strike_price": 0,
+                    "expiration_date": None
+                })
+            
+            result.append(option_data)
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error fetching option positions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/accounts")
 async def get_all_accounts(db: Session = Depends(get_db)):
     """Get all accounts from unified table"""
