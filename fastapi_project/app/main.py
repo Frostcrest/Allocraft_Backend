@@ -3,7 +3,19 @@ Allocraft FastAPI App
 
 Beginner guide:
 - Serves the API and a simple static UI at '/'.
-- CORS allows the Vite dev server (http://localhost:5173) by default.
+-# --- Routers ---
+from .routers import stocks, options, wheels, tickers, auth, users, importer, dashboard, schwab, portfolio_fast  # noqa: E402
+
+app.include_router(auth.router)
+app.include_router(stocks.router)
+app.include_router(options.router)
+app.include_router(wheels.router)
+app.include_router(tickers.router)
+app.include_router(users.router)
+app.include_router(importer.router)
+app.include_router(dashboard.router)
+app.include_router(schwab.router)
+app.include_router(portfolio_fast.router)  # Fast unified portfolio with progress trackinghe Vite dev server (http://localhost:5173) by default.
 - On startup, auto-imports Wheel Tracker CSVs from SEED_DROP_DIR or fastapi_project/seed_drop.
 - Ensures a default admin user exists (admin/admin123) for convenience.
 """
@@ -15,6 +27,7 @@ from fastapi.responses import FileResponse
 from .database import Base, engine, SessionLocal
 # Import models before calling create_all to ensure all tables are registered
 from . import models  # noqa: F401 - imports all models from models.py
+from . import models_unified  # noqa: F401 - imports unified models for new tables
 import os
 from dotenv import load_dotenv
 from datetime import datetime, UTC
@@ -95,7 +108,7 @@ def _ensure_default_admin():
 _ensure_default_admin()
 
 # --- Routers ---
-from .routers import stocks, options, wheels, tickers, auth, users, importer, dashboard, schwab  # noqa: E402
+from .routers import stocks, options, wheels, tickers, auth, users, importer, dashboard, schwab, portfolio_fast, stocks_fast  # noqa: E402
 
 app.include_router(auth.router)
 app.include_router(stocks.router)
@@ -106,6 +119,8 @@ app.include_router(users.router)
 app.include_router(importer.router)
 app.include_router(dashboard.router)
 app.include_router(schwab.router)
+app.include_router(portfolio_fast.router)  # Fast unified portfolio with progress tracking
+app.include_router(stocks_fast.router)  # Ultra-fast stocks endpoint
 
 
 # --- Expiry helper endpoints for local UI compatibility ---

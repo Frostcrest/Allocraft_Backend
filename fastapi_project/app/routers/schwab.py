@@ -1069,15 +1069,15 @@ async def export_positions(
 @router.post("/import/positions")
 async def import_positions(
     import_data: dict,
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Import positions from an exported JSON file.
     Use this on development to import real Schwab data exported from production.
+    No authentication required - imports data for all users.
     """
     try:
-        logger.info(f"Starting import for user {current_user.email}")
+        logger.info("Starting positions import (no auth required)")
         
         if "accounts" not in import_data or "export_info" not in import_data:
             raise HTTPException(status_code=400, detail="Invalid import data format")
