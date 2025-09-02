@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field, field_validator
-from typing import Optional, Literal
+from typing import Optional, Literal, Dict, Any
 from datetime import date, datetime
 
 # --- STOCK SCHEMAS ---
@@ -145,6 +145,10 @@ class WheelCycleBase(BaseModel):
     started_at: Optional[date] = None
     status: Literal["Open", "Closed"] = "Open"
     notes: Optional[str] = None
+    strategy_type: Optional[str] = None
+    detection_metadata: Optional[dict[str, Any]] = None
+    strategy_type: Optional[str] = None
+    detection_metadata: Optional[Dict[str, Any]] = None
 
     @field_validator("started_at", mode="before")
     @classmethod
