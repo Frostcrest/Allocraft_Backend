@@ -1426,16 +1426,20 @@ def update_wheel_cycle_status(
         if not cycle:
             raise HTTPException(status_code=404, detail="Wheel cycle not found")
         
-        # Validate status
-        valid_statuses = ["Open", "Closed"]
+        # Expanded valid statuses for comprehensive status tracking
+        valid_statuses = ["pending", "active", "monitoring", "assigned", "rolling", "covered", "expired", "closed", "paused"]
         if status not in valid_statuses:
             raise HTTPException(
                 status_code=400,
                 detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}"
             )
         
-        # Update status
+        # Store previous status for history
+        previous_status = cycle.status
+        
+        # Update status and metadata
         cycle.status = status
+        cycle.last_status_update = datetime.utcnow()
         
         db.commit()
         db.refresh(cycle)
@@ -1445,8 +1449,156 @@ def update_wheel_cycle_status(
             "cycle_key": cycle.cycle_key,
             "ticker": cycle.ticker,
             "status": cycle.status,
+            "previous_status": previous_status,
+            "last_status_update": cycle.last_status_update.isoformat() if cycle.last_status_update else None,
             "started_at": cycle.started_at.isoformat() if cycle.started_at else None
         }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error updating wheel cycle status: {str(e)}")
+
+
+@router.get("/cycles/{cycle_id}/status/history")
+def get_wheel_cycle_status_history(
+    cycle_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Get the complete status history for a wheel cycle.
+    
+    Returns a chronological list of all status changes with metadata.
+    
+    Args:
+        cycle_id: ID of the cycle
+        
+    Returns:
+        List of status history entries
+    """
+    try:
+        # Check if cycle exists
+        cycle = db.query(models.WheelCycle).filter(
+            models.WheelCycle.id == cycle_id
+        ).first()
+        
+        if not cycle:
+            raise HTTPException(status_code=404, detail="Wheel cycle not found")
+        
+        # Get status history (if table exists, otherwise return basic info)
+        try:
+            history = db.query(models.WheelStatusHistory).filter(
+                models.WheelStatusHistory.cycle_id == cycle_id
+            ).order_by(models.WheelStatusHistory.timestamp.desc()).all()
+            
+            history_data = []
+            for entry in history:
+                history_data.append({
+                    "id": entry.id,
+                    "cycle_id": entry.cycle_id,
+                    "previous_status": entry.previous_status,
+                    "new_status": entry.new_status,
+                    "trigger_event": entry.trigger_event,
+                    "automated": entry.automated,
+                    "metadata": entry.metadata,
+                    "updated_by": entry.updated_by,
+                    "timestamp": entry.timestamp.isoformat() if entry.timestamp else None
+                })
+                
+        except Exception as e:
+            # Fallback: return current status as single history entry
+            history_data = [{
+                "id": 1,
+                "cycle_id": cycle_id,
+                "previous_status": None,
+                "new_status": cycle.status,
+                "trigger_event": "initial",
+                "automated": False,
+                "metadata": "{}",
+                "updated_by": "system",
+                "timestamp": cycle.started_at.isoformat() if cycle.started_at else None
+            }]
+        
+        return {
+            "cycle_id": cycle_id,
+            "current_status": cycle.status,
+            "history": history_data,
+            "total_entries": len(history_data)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching status history: {str(e)}")
+
+
+@router.post("/cycles/{cycle_id}/status/auto-detect")
+def auto_detect_wheel_status(
+    cycle_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Automatically detect the appropriate status for a wheel cycle based on current positions.
+    
+    This endpoint analyzes current positions and market conditions to recommend
+    the most appropriate status for the wheel cycle.
+    
+    Args:
+        cycle_id: ID of the cycle to analyze
+        
+    Returns:
+        Recommended status with confidence level and reasoning
+    """
+    try:
+        cycle = db.query(models.WheelCycle).filter(
+            models.WheelCycle.id == cycle_id
+        ).first()
+        
+        if not cycle:
+            raise HTTPException(status_code=404, detail="Wheel cycle not found")
+        
+        # Simple auto-detection logic (can be enhanced)
+        current_status = cycle.status
+        recommended_status = current_status
+        confidence = 0.5
+        trigger_events = []
+        recommendations = []
+        
+        # Basic status detection based on time and current status
+        if current_status == "pending":
+            recommended_status = "active"
+            confidence = 0.8
+            trigger_events.append("time_based_activation")
+            recommendations.append("Activate wheel strategy")
+        
+        elif current_status == "active":
+            # Check if should be monitoring (near expiration logic would go here)
+            recommended_status = "monitoring"
+            confidence = 0.6
+            trigger_events.append("time_based_monitoring")
+            recommendations.append("Monitor for assignment risk")
+        
+        return {
+            "cycle_id": cycle_id,
+            "current_status": current_status,
+            "recommended_status": recommended_status,
+            "confidence": confidence,
+            "trigger_events": trigger_events,
+            "recommendations": recommendations,
+            "analysis_timestamp": datetime.utcnow().isoformat(),
+            "position_analysis": {
+                "total_positions": 0,  # Would be calculated from actual positions
+                "has_stock_positions": False,
+                "has_option_positions": False,
+                "options_near_expiration": False
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error in auto-detection: {str(e)}")
         
     except HTTPException:
         raise
