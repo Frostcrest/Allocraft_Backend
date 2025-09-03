@@ -4,6 +4,7 @@ Optimized for speed and transparency
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from typing import List
 from app.database import get_db
 from app.models_unified import Account, Position
 from datetime import datetime
@@ -124,14 +125,23 @@ async def get_all_positions(db: Session = Depends(get_db)):
         for pos in positions:
             result.append({
                 "id": pos.id,
+                "account_id": pos.account_id,
                 "symbol": pos.symbol,
+                "underlying_symbol": pos.underlying_symbol,
                 "asset_type": pos.asset_type,
+                "option_type": pos.option_type,
+                "strike_price": pos.strike_price,
+                "expiration_date": pos.expiration_date,
                 "long_quantity": pos.long_quantity,
                 "short_quantity": pos.short_quantity,
                 "market_value": pos.market_value,
                 "average_price": pos.average_price,
+                "current_price": pos.current_price,
+                "price_last_updated": pos.price_last_updated,
+                "current_day_profit_loss": pos.current_day_profit_loss,
+                "status": pos.status,
                 "data_source": pos.data_source,
-                "status": pos.status
+                "last_updated": pos.last_updated
             })
         
         return {
@@ -187,9 +197,10 @@ async def get_stock_positions(db: Session = Depends(get_db)):
 
 @router.get("/options")
 async def get_option_positions(db: Session = Depends(get_db)):
-    """Get all option positions from unified table with parsed data"""
+    """Get all option positions from unified table with enhanced P&L calculations"""
     try:
         from app.utils.option_parser import parse_option_symbol
+        from app.services.pnl_service import OptionPnLCalculator
         
         # Get all option positions
         option_positions = db.query(Position).filter(
@@ -204,11 +215,26 @@ async def get_option_positions(db: Session = Depends(get_db)):
             # Calculate contracts (positive for long, negative for short)
             contracts = (pos.long_quantity or 0) - (pos.short_quantity or 0)
             
-            # Calculate profit/loss
-            market_value = pos.market_value or 0
-            cost_basis = (pos.average_price or 0) * abs(contracts) * 100  # Options are per 100 shares
-            profit_loss = market_value - cost_basis
-            profit_loss_percent = ((profit_loss / cost_basis) * 100) if cost_basis > 0 else 0
+            # Prepare position data for enhanced P&L calculation
+            position_data = {
+                'contracts': contracts,
+                'average_price': pos.average_price or 0,
+                'current_price': pos.current_price or 0,
+                'option_type': parsed.get('option_type', 'CALL') if parsed else 'CALL',
+                'strike_price': parsed.get('strike_price', 0) if parsed else 0,
+                'symbol': pos.symbol
+            }
+            
+            # Determine strategy type based on position characteristics
+            strategy_type = None
+            if contracts < 0:  # Short position
+                if position_data['option_type'] == 'PUT':
+                    strategy_type = 'wheel'  # Cash-secured put
+                elif position_data['option_type'] == 'CALL':
+                    strategy_type = 'covered_call'  # Assume covered call
+            
+            # Calculate enhanced P&L using new service
+            pnl_data = OptionPnLCalculator.calculate_strategy_pnl(position_data, strategy_type)
             
             option_data = {
                 "id": pos.id,
@@ -216,15 +242,21 @@ async def get_option_positions(db: Session = Depends(get_db)):
                 "asset_type": pos.asset_type,
                 "long_quantity": pos.long_quantity or 0,
                 "short_quantity": pos.short_quantity or 0,
-                "market_value": market_value,
+                "market_value": pnl_data['market_value'],
                 "average_price": pos.average_price or 0,
                 "current_price": pos.current_price or 0,
                 "data_source": pos.data_source,
                 "status": pos.status,
                 "account_id": pos.account_id,
                 "contracts": contracts,
-                "profit_loss": profit_loss,
-                "profit_loss_percent": profit_loss_percent
+                "profit_loss": pnl_data['profit_loss'],
+                "profit_loss_percent": pnl_data['profit_loss_percent'],
+                "cost_basis": pnl_data['cost_basis'],
+                "strategy_type": pnl_data.get('strategy_type'),
+                "risk_level": pnl_data.get('risk_level'),
+                "breakeven_price": pnl_data.get('breakeven_price'),
+                "max_profit": pnl_data.get('max_profit'),
+                "calculation_timestamp": pnl_data.get('calculation_timestamp')
             }
             
             # Add parsed option details if parsing was successful
@@ -250,6 +282,59 @@ async def get_option_positions(db: Session = Depends(get_db)):
         
     except Exception as e:
         logger.error(f"Error fetching option positions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/options/analytics")
+async def get_option_analytics(db: Session = Depends(get_db)):
+    """Get portfolio-level option analytics and P&L summary"""
+    try:
+        from app.services.pnl_service import OptionPnLCalculator
+        from app.utils.option_parser import parse_option_symbol
+        
+        # Get all option positions
+        option_positions = db.query(Position).filter(
+            Position.asset_type == "OPTION"
+        ).all()
+        
+        # Prepare position data for portfolio calculation
+        positions_data = []
+        for pos in option_positions:
+            parsed = parse_option_symbol(pos.symbol)
+            contracts = (pos.long_quantity or 0) - (pos.short_quantity or 0)
+            
+            # Determine strategy type
+            strategy_type = 'unknown'
+            if contracts < 0:  # Short position
+                if parsed and parsed.get('option_type') == 'PUT':
+                    strategy_type = 'wheel'
+                elif parsed and parsed.get('option_type') == 'CALL':
+                    strategy_type = 'covered_call'
+            elif contracts > 0:  # Long position
+                strategy_type = 'long_option'
+            
+            position_data = {
+                'contracts': contracts,
+                'average_price': pos.average_price or 0,
+                'current_price': pos.current_price or 0,
+                'option_type': parsed.get('option_type', 'CALL') if parsed else 'CALL',
+                'strike_price': parsed.get('strike_price', 0) if parsed else 0,
+                'symbol': pos.symbol,
+                'strategy_type': strategy_type
+            }
+            positions_data.append(position_data)
+        
+        # Calculate portfolio-level analytics
+        portfolio_analytics = OptionPnLCalculator.calculate_portfolio_pnl(positions_data)
+        
+        return {
+            "portfolio_summary": portfolio_analytics,
+            "position_count": len(positions_data),
+            "last_updated": portfolio_analytics.get('calculation_timestamp')
+        }
+        
+    except Exception as e:
+        logger.error(f"Error calculating option analytics: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -282,3 +367,103 @@ async def get_all_accounts(db: Session = Depends(get_db)):
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/refresh-all-prices")
+async def refresh_all_portfolio_prices(db: Session = Depends(get_db)):
+    """
+    Refresh current prices for all active portfolio positions (stocks and options)
+    with market value recalculation and detailed progress reporting
+    """
+    try:
+        from app.services.market_value_service import MarketValueUpdateService
+        
+        # Initialize the market value update service
+        update_service = MarketValueUpdateService(db)
+        
+        # Perform full portfolio price refresh
+        result = update_service.refresh_all_portfolio_prices()
+        
+        if result["success"]:
+            return result
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail=result["message"]
+            )
+            
+    except Exception as e:
+        logger.error(f"Error in refresh_all_portfolio_prices: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to refresh portfolio prices: {str(e)}"
+        )
+
+
+@router.post("/refresh-all-prices")
+async def refresh_all_portfolio_prices(db: Session = Depends(get_db)):
+    """
+    Refresh current prices for all portfolio positions (stocks and options)
+    """
+    try:
+        from app.services.market_value_service import MarketValueUpdateService
+        
+        # Initialize the market value update service
+        update_service = MarketValueUpdateService(db)
+        
+        # Perform full portfolio price refresh
+        result = update_service.refresh_all_portfolio_prices()
+        
+        if result["success"]:
+            return result
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail=result["message"]
+            )
+            
+    except Exception as e:
+        logger.error(f"Error in refresh_all_portfolio_prices: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to refresh portfolio prices: {str(e)}"
+        )
+
+
+@router.post("/refresh-selected-prices")
+async def refresh_selected_position_prices(
+    position_ids: List[int],
+    db: Session = Depends(get_db)
+):
+    """
+    Refresh current prices for selected positions only
+    """
+    try:
+        from app.services.market_value_service import MarketValueUpdateService
+        
+        if not position_ids:
+            raise HTTPException(
+                status_code=400,
+                detail="No position IDs provided"
+            )
+        
+        # Initialize the market value update service
+        update_service = MarketValueUpdateService(db)
+        
+        # Perform selected positions price refresh
+        result = update_service.refresh_selected_positions(position_ids)
+        
+        if result["success"]:
+            return result
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail=result["message"]
+            )
+            
+    except Exception as e:
+        logger.error(f"Error in refresh_selected_position_prices: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to refresh selected position prices: {str(e)}"
+        )
