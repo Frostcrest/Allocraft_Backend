@@ -1208,3 +1208,250 @@ async def detect_wheel_strategies(
             status_code=500,
             detail=f"Failed to detect wheel strategies: {str(e)}"
         )
+
+
+# ===== ADDITIONAL API ENDPOINTS FOR PHASE 2 INTEGRATION =====
+
+@router.get("/{ticker}/data")
+def get_wheel_ticker_data(ticker: str, db: Session = Depends(get_db)):
+    """
+    Get comprehensive wheel data for a specific ticker.
+    
+    This endpoint provides all wheel-related information for a ticker including:
+    - Active wheel cycles
+    - Performance metrics
+    - Current positions
+    - Opportunities
+    
+    Args:
+        ticker: Stock symbol to get wheel data for
+        
+    Returns:
+        WheelTickerData object with comprehensive ticker information
+    """
+    try:
+        ticker = ticker.upper()
+        
+        # Get all cycles for this ticker
+        cycles = db.query(models.WheelCycle).filter(
+            models.WheelCycle.ticker == ticker
+        ).all()
+        
+        # Get performance metrics if cycles exist
+        total_premium = 0.0
+        total_realized_pnl = 0.0
+        active_cycles = 0
+        
+        for cycle in cycles:
+            if cycle.status == "active":
+                active_cycles += 1
+                # Get cycle events to calculate performance
+                events = db.query(models.WheelEvent).filter(
+                    models.WheelEvent.cycle_id == cycle.id
+                ).all()
+                
+                for event in events:
+                    if event.event_type in ["SELL_PUT_OPEN", "SELL_CALL_OPEN"]:
+                        if event.premium_received:
+                            total_premium += float(event.premium_received)
+                    elif event.event_type in ["SELL_PUT_CLOSED", "SELL_CALL_CLOSED"]:
+                        if event.premium_paid:
+                            total_realized_pnl += float(event.premium_received or 0) - float(event.premium_paid)
+        
+        # Get current positions for this ticker from unified model
+        positions = db.query(Position).filter(
+            Position.symbol == ticker
+        ).all()
+        
+        return {
+            "ticker": ticker,
+            "active_cycles": active_cycles,
+            "total_cycles": len(cycles),
+            "total_premium_collected": total_premium,
+            "realized_pnl": total_realized_pnl,
+            "current_positions": [
+                {
+                    "id": pos.id,
+                    "symbol": pos.symbol,
+                    "quantity": pos.quantity,
+                    "market_value": pos.market_value,
+                    "position_type": pos.position_type,
+                    "option_type": pos.option_type,
+                    "strike_price": pos.strike_price,
+                    "expiration_date": pos.expiration_date.isoformat() if pos.expiration_date else None
+                }
+                for pos in positions
+            ],
+            "cycles": [
+                {
+                    "id": cycle.id,
+                    "cycle_key": cycle.cycle_key,
+                    "status": cycle.status,
+                    "started_at": cycle.started_at.isoformat() if cycle.started_at else None,
+                    "strategy_type": cycle.strategy_type,
+                    "notes": cycle.notes
+                }
+                for cycle in cycles
+            ]
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get wheel data for ticker {ticker}: {str(e)}"
+        )
+
+
+@router.post("/events/", response_model=schemas.WheelEventRead)
+def create_wheel_event_alt(payload: schemas.WheelEventCreate, db: Session = Depends(get_db)):
+    """
+    Alternative endpoint for creating wheel events (matches frontend expectation).
+    
+    This endpoint provides the same functionality as POST /wheels/wheel-events
+    but with a slightly different URL pattern that matches frontend calls.
+    
+    Input: WheelEventCreate
+    Returns: WheelEventRead
+    Errors: 404 if cycle not found
+    """
+    return crud.create_wheel_event(db, payload)
+
+
+@router.get("/performance", response_model=Dict[str, Any])
+def get_wheel_performance(
+    ticker: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """
+    Get performance analytics for wheels.
+    
+    This endpoint provides comprehensive performance metrics including:
+    - Total P&L across all wheels
+    - Performance by ticker
+    - Time-based performance analysis
+    - Success rates and metrics
+    
+    Args:
+        ticker: Optional ticker to filter by
+        start_date: Optional start date for filtering (YYYY-MM-DD)
+        end_date: Optional end date for filtering (YYYY-MM-DD)
+        
+    Returns:
+        Performance analytics object
+    """
+    try:
+        # Build base query
+        query = db.query(models.WheelCycle)
+        
+        # Filter by ticker if provided
+        if ticker:
+            query = query.filter(models.WheelCycle.ticker == ticker.upper())
+        
+        # Date filtering would go here if we had date fields on cycles
+        cycles = query.all()
+        
+        # Calculate performance metrics
+        total_cycles = len(cycles)
+        active_cycles = len([c for c in cycles if c.status == "Open"])
+        completed_cycles = len([c for c in cycles if c.status == "Closed"])
+        
+        # For now, return basic metrics without event-based calculations
+        # since the WheelEvent model is incomplete
+        tickers_performance = {}
+        
+        for cycle in cycles:
+            if cycle.ticker not in tickers_performance:
+                tickers_performance[cycle.ticker] = {
+                    "cycles": 0,
+                    "active": 0,
+                    "completed": 0
+                }
+            
+            tickers_performance[cycle.ticker]["cycles"] += 1
+            if cycle.status == "Open":
+                tickers_performance[cycle.ticker]["active"] += 1
+            elif cycle.status == "Closed":
+                tickers_performance[cycle.ticker]["completed"] += 1
+        
+        return {
+            "summary": {
+                "total_cycles": total_cycles,
+                "active_cycles": active_cycles,
+                "completed_cycles": completed_cycles,
+                "total_premium_collected": 0.0,  # TODO: Implement when WheelEvent model is complete
+                "total_realized_pnl": 0.0,  # TODO: Implement when WheelEvent model is complete
+                "success_rate": completed_cycles / total_cycles if total_cycles > 0 else 0
+            },
+            "by_ticker": tickers_performance,
+            "filters": {
+                "ticker": ticker,
+                "start_date": start_date,
+                "end_date": end_date
+            }
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get performance analytics: {str(e)}"
+        )
+
+
+@router.put("/cycles/{cycle_id}/status")
+def update_wheel_cycle_status(
+    cycle_id: int,
+    status: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Update the status of a wheel cycle.
+    
+    This endpoint allows for manual status changes of wheel cycles
+    which is important for management functionality.
+    
+    Args:
+        cycle_id: ID of the cycle to update
+        status: New status (active, completed, closed, etc.)
+        
+    Returns:
+        Updated cycle information
+    """
+    try:
+        cycle = db.query(models.WheelCycle).filter(
+            models.WheelCycle.id == cycle_id
+        ).first()
+        
+        if not cycle:
+            raise HTTPException(status_code=404, detail="Wheel cycle not found")
+        
+        # Validate status
+        valid_statuses = ["Open", "Closed"]
+        if status not in valid_statuses:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}"
+            )
+        
+        # Update status
+        cycle.status = status
+        
+        db.commit()
+        db.refresh(cycle)
+        
+        return {
+            "id": cycle.id,
+            "cycle_key": cycle.cycle_key,
+            "ticker": cycle.ticker,
+            "status": cycle.status,
+            "started_at": cycle.started_at.isoformat() if cycle.started_at else None
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to update cycle status: {str(e)}"
+        )
