@@ -1,5 +1,6 @@
 # Simple models stub to fix immediate import issues
 from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, Date, Text
+from sqlalchemy.orm import relationship
 from datetime import datetime, date
 
 # Import the Base from the database module
@@ -76,6 +77,23 @@ class WheelCycle(Base):
     notes = Column(Text, nullable=True)
     strategy_type = Column(String, nullable=True)
     detection_metadata = Column(Text, nullable=True)  # JSON stored as text
+    status_metadata = Column(Text, nullable=True)  # JSON stored as text for transition context
+    last_status_update = Column(DateTime, default=datetime.utcnow)
+
+class WheelStatusHistory(Base):
+    __tablename__ = "wheel_status_history"
+    id = Column(Integer, primary_key=True, index=True)
+    cycle_id = Column(Integer, ForeignKey("wheel_cycles.id"), index=True)
+    previous_status = Column(String, nullable=True)
+    new_status = Column(String, nullable=False)
+    trigger_event = Column(String, nullable=False)  # 'manual', 'assignment', 'expiration', 'position_change'
+    automated = Column(Boolean, default=False)
+    metadata = Column(Text, nullable=True)  # JSON stored as text
+    updated_by = Column(String, nullable=True)  # User who made the change
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationship to wheel cycle
+    cycle = relationship("WheelCycle", backref="status_history")
 
 class WheelEvent(Base):
     __tablename__ = "wheel_events"
