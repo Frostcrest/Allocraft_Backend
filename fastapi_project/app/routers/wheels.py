@@ -814,7 +814,7 @@ def calculate_confidence_score(
     score += strategy_scores.get(strategy, 0)
 
     # Cash validation (for CSP strategies)
-    if cash_required > 0:
+    if cash_required > 0 and cash_balance is not None:
         if cash_balance >= cash_required:
             score += 15  # Sufficient cash
         elif cash_balance >= cash_required * 0.5:
@@ -928,8 +928,8 @@ def analyze_ticker_positions(
     
     stock_positions = [p for p in positions if not p.is_option]
     option_positions = [p for p in positions if p.is_option]
-    call_options = [p for p in option_positions if p.option_type == 'Call']
-    put_options = [p for p in option_positions if p.option_type == 'Put']
+    call_options = [p for p in option_positions if p.option_type == 'CALL']
+    put_options = [p for p in option_positions if p.option_type == 'PUT']
 
     # Calculate total stock holdings
     total_stock_shares = sum(p.shares for p in stock_positions)
@@ -946,7 +946,7 @@ def analyze_ticker_positions(
         days_to_expiration = calculate_days_to_expiration(p.expiration_date) if p.expiration_date else None
 
         enhanced_pos = EnhancedPosition(
-            type='call' if p.is_option and p.option_type == 'Call' else 'put' if p.is_option and p.option_type == 'Put' else 'stock',
+            type='call' if p.is_option and p.option_type == 'CALL' else 'put' if p.is_option and p.option_type == 'PUT' else 'stock',
             symbol=p.symbol,
             quantity=abs(raw_quantity),
             position='short' if is_short_position else 'long',
