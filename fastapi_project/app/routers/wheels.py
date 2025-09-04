@@ -167,7 +167,23 @@ def list_wheel_cycles(db: Session = Depends(get_db)):
 
     Returns: list[WheelCycleRead]
     """
-    return crud.list_wheel_cycles(db)
+    import json
+    cycles = crud.list_wheel_cycles(db)
+    
+    # Convert JSON strings back to dictionaries for Pydantic validation
+    for cycle in cycles:
+        if cycle.detection_metadata and isinstance(cycle.detection_metadata, str):
+            try:
+                cycle.detection_metadata = json.loads(cycle.detection_metadata)
+            except json.JSONDecodeError:
+                cycle.detection_metadata = None
+        if cycle.status_metadata and isinstance(cycle.status_metadata, str):
+            try:
+                cycle.status_metadata = json.loads(cycle.status_metadata)
+            except json.JSONDecodeError:
+                cycle.status_metadata = None
+    
+    return cycles
 
 
 @router.post("/wheel-cycles", response_model=schemas.WheelCycleRead)
