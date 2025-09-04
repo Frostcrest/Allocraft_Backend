@@ -1501,7 +1501,7 @@ def get_wheel_cycle_status_history(
                     "new_status": entry.new_status,
                     "trigger_event": entry.trigger_event,
                     "automated": entry.automated,
-                    "metadata": entry.metadata,
+                    "metadata": entry.event_metadata,
                     "updated_by": entry.updated_by,
                     "timestamp": entry.timestamp.isoformat() if entry.timestamp else None
                 })

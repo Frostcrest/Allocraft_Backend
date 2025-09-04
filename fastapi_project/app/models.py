@@ -88,7 +88,7 @@ class WheelStatusHistory(Base):
     new_status = Column(String, nullable=False)
     trigger_event = Column(String, nullable=False)  # 'manual', 'assignment', 'expiration', 'position_change'
     automated = Column(Boolean, default=False)
-    metadata = Column(Text, nullable=True)  # JSON stored as text
+    event_metadata = Column(Text, nullable=True)  # JSON stored as text (renamed from 'metadata' to avoid SQLAlchemy conflict)
     updated_by = Column(String, nullable=True)  # User who made the change
     timestamp = Column(DateTime, default=datetime.utcnow)
     
@@ -98,7 +98,17 @@ class WheelStatusHistory(Base):
 class WheelEvent(Base):
     __tablename__ = "wheel_events"
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String)
+    cycle_id = Column(Integer, ForeignKey("wheel_cycles.id"), index=True)
+    event_type = Column(String, nullable=False)  # e.g., "SELL_PUT_OPEN", "SELL_PUT_CLOSE", etc.
+    event_date = Column(Date, nullable=True)
+    contracts = Column(Float, nullable=True)  # Number of contracts
+    strike = Column(Float, nullable=True)     # Strike price
+    premium = Column(Float, nullable=True)    # Premium received/paid
+    notes = Column(Text, nullable=True)
+    name = Column(String, nullable=True)      # Keep for backward compatibility
+    
+    # Relationship to wheel cycle
+    cycle = relationship("WheelCycle", backref="events")
 
 class Lot(Base):
     __tablename__ = "lots"
