@@ -167,23 +167,7 @@ def list_wheel_cycles(db: Session = Depends(get_db)):
 
     Returns: list[WheelCycleRead]
     """
-    import json
-    cycles = crud.list_wheel_cycles(db)
-    
-    # Convert JSON strings back to dictionaries for Pydantic validation
-    for cycle in cycles:
-        if cycle.detection_metadata and isinstance(cycle.detection_metadata, str):
-            try:
-                cycle.detection_metadata = json.loads(cycle.detection_metadata)
-            except json.JSONDecodeError:
-                cycle.detection_metadata = None
-        if cycle.status_metadata and isinstance(cycle.status_metadata, str):
-            try:
-                cycle.status_metadata = json.loads(cycle.status_metadata)
-            except json.JSONDecodeError:
-                cycle.status_metadata = None
-    
-    return cycles
+    return crud.list_wheel_cycles(db)
 
 
 @router.post("/wheel-cycles", response_model=schemas.WheelCycleRead)
@@ -830,7 +814,7 @@ def calculate_confidence_score(
     score += strategy_scores.get(strategy, 0)
 
     # Cash validation (for CSP strategies)
-    if cash_required > 0 and cash_balance is not None:
+    if cash_required > 0:
         if cash_balance >= cash_required:
             score += 15  # Sufficient cash
         elif cash_balance >= cash_required * 0.5:
@@ -944,8 +928,8 @@ def analyze_ticker_positions(
     
     stock_positions = [p for p in positions if not p.is_option]
     option_positions = [p for p in positions if p.is_option]
-    call_options = [p for p in option_positions if p.option_type == 'CALL']
-    put_options = [p for p in option_positions if p.option_type == 'PUT']
+    call_options = [p for p in option_positions if p.option_type == 'Call']
+    put_options = [p for p in option_positions if p.option_type == 'Put']
 
     # Calculate total stock holdings
     total_stock_shares = sum(p.shares for p in stock_positions)
@@ -962,7 +946,7 @@ def analyze_ticker_positions(
         days_to_expiration = calculate_days_to_expiration(p.expiration_date) if p.expiration_date else None
 
         enhanced_pos = EnhancedPosition(
-            type='call' if p.is_option and p.option_type == 'CALL' else 'put' if p.is_option and p.option_type == 'PUT' else 'stock',
+            type='call' if p.is_option and p.option_type == 'Call' else 'put' if p.is_option and p.option_type == 'Put' else 'stock',
             symbol=p.symbol,
             quantity=abs(raw_quantity),
             position='short' if is_short_position else 'long',

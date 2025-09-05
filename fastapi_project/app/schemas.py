@@ -146,8 +146,6 @@ class WheelCycleBase(BaseModel):
     status: Literal["Open", "Closed"] = "Open"
     notes: Optional[str] = None
     strategy_type: Optional[str] = None
-    detection_metadata: Optional[dict[str, Any]] = None
-    strategy_type: Optional[str] = None
     detection_metadata: Optional[Dict[str, Any]] = None
 
     @field_validator("started_at", mode="before")
@@ -182,7 +180,7 @@ class WheelEventBase(BaseModel):
         "SELL_CALL_CLOSE",
         "CALLED_AWAY",
     ]
-    trade_date: Optional[date] = None
+    event_date: Optional[date] = None
 
     quantity_shares: Optional[float] = None
     contracts: Optional[int] = None
@@ -194,9 +192,9 @@ class WheelEventBase(BaseModel):
     link_event_id: Optional[int] = None
     notes: Optional[str] = None
 
-    @field_validator("trade_date", mode="before")
+    @field_validator("event_date", mode="before")
     @classmethod
-    def _empty_trade_date_to_none(cls, v):
+    def _empty_event_date_to_none(cls, v):
         if v is None:
             return None
         if isinstance(v, str) and v.strip() == "":

@@ -46,17 +46,24 @@ app = FastAPI(
 )
 
 # --- CORS configuration ---
-origins = [
-    "http://localhost:5173",
-    "http://localhost:5174",  # Added for when 5173 is in use
-    "http://localhost:5175",  # Added for when 5174 is in use
-    "http://127.0.0.1:5173",  # Include 127.0.0.1 variants
-    "http://127.0.0.1:5174",
-    "http://127.0.0.1:5175",
-    "http://localhost:8001",
-    "https://allocraft.app",
-    "https://www.allocraft.app"
-]
+# Environment variable override for CORS origins
+env_origins = os.getenv("FRONTEND_ORIGINS", "")
+if env_origins:
+    origins = [origin.strip() for origin in env_origins.split(",") if origin.strip()]
+else:
+    origins = [
+        "http://localhost:5173",
+        "http://localhost:5174",  # Added for when 5173 is in use
+        "http://localhost:5175",  # Added for when 5174 is in use
+        "http://127.0.0.1:5173",  # Include 127.0.0.1 variants
+        "http://127.0.0.1:5174",
+        "http://127.0.0.1:5175",
+        "http://localhost:8000",  # Backend self-requests
+        "http://127.0.0.1:8000",  # Backend self-requests
+        "http://localhost:8001",
+        "https://allocraft.app",
+        "https://www.allocraft.app"
+    ]
 
 app.add_middleware(
     CORSMiddleware,

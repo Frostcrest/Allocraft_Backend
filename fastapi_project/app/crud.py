@@ -392,10 +392,26 @@ def delete_user(db: Session, user_id: int) -> bool:
 # --- EVENT-BASED WHEEL CRUD & METRICS ---
 
 def list_wheel_cycles(db: Session):
-    return db.query(models.WheelCycle).all()
+    import json
+    cycles = db.query(models.WheelCycle).all()
+    # Convert detection_metadata from JSON string to dict for each cycle
+    for cycle in cycles:
+        if cycle.detection_metadata and isinstance(cycle.detection_metadata, str):
+            try:
+                cycle.detection_metadata = json.loads(cycle.detection_metadata)
+            except (json.JSONDecodeError, TypeError):
+                cycle.detection_metadata = None
+    return cycles
 
 def get_wheel_cycle(db: Session, cycle_id: int):
-    return db.query(models.WheelCycle).filter(models.WheelCycle.id == cycle_id).first()
+    import json
+    cycle = db.query(models.WheelCycle).filter(models.WheelCycle.id == cycle_id).first()
+    if cycle and cycle.detection_metadata and isinstance(cycle.detection_metadata, str):
+        try:
+            cycle.detection_metadata = json.loads(cycle.detection_metadata)
+        except (json.JSONDecodeError, TypeError):
+            cycle.detection_metadata = None
+    return cycle
 
 def create_wheel_cycle(db: Session, payload: schemas.WheelCycleCreate):
     import json
@@ -436,7 +452,7 @@ def list_wheel_events(db: Session, cycle_id: int | None = None):
     q = db.query(models.WheelEvent)
     if cycle_id is not None:
         q = q.filter(models.WheelEvent.cycle_id == cycle_id)
-    return q.order_by(models.WheelEvent.trade_date.asc(), models.WheelEvent.id.asc()).all()
+    return q.order_by(models.WheelEvent.event_date.asc(), models.WheelEvent.id.asc()).all()
 
 def get_wheel_event(db: Session, event_id: int):
     return db.query(models.WheelEvent).filter(models.WheelEvent.id == event_id).first()
@@ -773,7 +789,7 @@ class LotAssembler:
         events = (
             self.db.query(models.WheelEvent)
             .filter(models.WheelEvent.cycle_id == cycle_id)
-            .order_by(models.WheelEvent.trade_date.asc(), models.WheelEvent.id.asc())
+            .order_by(models.WheelEvent.event_date.asc(), models.WheelEvent.id.asc())
             .all()
         )
 
@@ -788,7 +804,7 @@ class LotAssembler:
                     cycle_id=cycle_id,
                     ticker=ticker,
                     acquisition_method="PUT_ASSIGNMENT",
-                    acquisition_date=e.trade_date,
+                    acquisition_date=e.event_date,
                     status="OPEN_UNCOVERED",
                 )
                 self.db.add(lot)
@@ -805,7 +821,7 @@ class LotAssembler:
                         cycle_id=cycle_id,
                         ticker=ticker,
                         acquisition_method="OUTRIGHT_PURCHASE",
-                        acquisition_date=e.trade_date,
+                        acquisition_date=e.event_date,
                         status="OPEN_UNCOVERED",
                     )
                     self.db.add(lot)
