@@ -162,6 +162,12 @@ class WheelCycleCreate(WheelCycleBase):
 
 class WheelCycleRead(WheelCycleBase):
     id: int
+    
+    # Real-time P&L fields
+    current_option_value: Optional[float] = None
+    unrealized_pnl: Optional[float] = None
+    total_pnl: Optional[float] = None
+    price_last_updated: Optional[datetime] = None
 
     class Config:
         from_attributes = True

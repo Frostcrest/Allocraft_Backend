@@ -79,6 +79,12 @@ class WheelCycle(Base):
     detection_metadata = Column(Text, nullable=True)  # JSON stored as text
     status_metadata = Column(Text, nullable=True)  # JSON stored as text for transition context
     last_status_update = Column(DateTime, default=datetime.utcnow)
+    
+    # Real-time P&L fields
+    current_option_value = Column(Float, nullable=True)  # Current market value of option positions
+    unrealized_pnl = Column(Float, nullable=True)  # Premium collected - current option value
+    total_pnl = Column(Float, nullable=True)  # Total realized + unrealized P&L
+    price_last_updated = Column(DateTime, nullable=True)  # Timestamp of last price refresh
 
 class WheelStatusHistory(Base):
     __tablename__ = "wheel_status_history"

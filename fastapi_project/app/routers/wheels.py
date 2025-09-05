@@ -269,6 +269,33 @@ def get_wheel_metrics(cycle_id: int, db: Session = Depends(get_db)):
     return crud.calculate_wheel_metrics(db, cycle_id)
 
 
+@router.post("/refresh-prices")
+def refresh_wheel_prices(db: Session = Depends(get_db)):
+    """Refresh real-time prices for all active wheel cycles.
+    
+    Updates current option values and recalculates P&L for all open wheel strategies.
+    Uses yfinance to fetch current option market prices.
+    
+    Returns: Summary of refresh results with updated P&L values
+    """
+    try:
+        from ..services.wheel_pnl_service import WheelPnLCalculator
+        
+        # Initialize the P&L calculator
+        calculator = WheelPnLCalculator(db)
+        
+        # Refresh all wheel cycle P&L
+        result = calculator.refresh_all_wheel_pnl()
+        
+        return result
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to refresh wheel prices: {str(e)}"
+        )
+
+
 # --- Lot endpoints ---
 @router.get("/cycles/{cycle_id}/lots", response_model=list[schemas.LotRead])
 def list_cycle_lots(cycle_id: int, status: str | None = None, covered: bool | None = None, ticker: str | None = None, db: Session = Depends(get_db)):
