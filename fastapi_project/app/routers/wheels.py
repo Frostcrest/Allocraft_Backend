@@ -928,15 +928,31 @@ def analyze_ticker_positions(
     
     stock_positions = [p for p in positions if not p.is_option]
     option_positions = [p for p in positions if p.is_option]
-    call_options = [p for p in option_positions if p.option_type == 'Call']
-    put_options = [p for p in option_positions if p.option_type == 'Put']
+    call_options = [p for p in option_positions if p.option_type and p.option_type.upper() == 'CALL']
+    put_options = [p for p in option_positions if p.option_type and p.option_type.upper() == 'PUT']
+
+    print(f"    📊 {ticker}: {len(stock_positions)} stocks, {len(call_options)} calls, {len(put_options)} puts")
 
     # Calculate total stock holdings
     total_stock_shares = sum(p.shares for p in stock_positions)
 
+    # Debug contracts for puts
+    for p in put_options:
+        print(f"    📍 PUT {p.symbol}: contracts={p.contracts}")
+
     # Separate long/short options - Use signed values
     short_calls = [p for p in call_options if (p.contracts or 0) < 0]
     short_puts = [p for p in put_options if (p.contracts or 0) < 0]
+    
+    print(f"    🔍 Short puts found: {len(short_puts)}")
+    print(f"    🔍 Short calls found: {len(short_calls)}")
+    print(f"    🔍 Stock shares: {total_stock_shares}")
+    
+    # Debug detection results
+    csp_result = is_cash_secured_put(short_puts)
+    cc_result = is_covered_call(total_stock_shares, short_calls)
+    print(f"    🎯 CSP Detection: {csp_result} (short_puts={len(short_puts)})")
+    print(f"    🎯 CC Detection: {cc_result} (shares={total_stock_shares}, short_calls={len(short_calls)})")
 
     # Enhanced position formatting
     formatted_positions = []
@@ -1192,10 +1208,20 @@ async def detect_wheel_strategies(
         grouped_positions = group_positions_by_ticker(detection_positions)
         results = []
         
+        print(f"🔍 DEBUG: Found {len(grouped_positions)} tickers to analyze")
+        for ticker in grouped_positions.keys():
+            print(f"  - {ticker}: {len(grouped_positions[ticker])} positions")
+        
         for ticker, ticker_positions in grouped_positions.items():
+            print(f"\n🎯 Analyzing {ticker} with {len(ticker_positions)} positions...")
             detection_result = analyze_ticker_positions(ticker, ticker_positions, request.options)
             if detection_result:
+                print(f"✅ Found opportunity: {detection_result.strategy} for {ticker}")
                 results.append(detection_result)
+            else:
+                print(f"❌ No opportunity found for {ticker}")
+        
+        print(f"\n📊 Total opportunities found: {len(results)}")
         
         # Sort by strategy complexity and confidence score
         strategy_order = {'full_wheel': 0, 'covered_call': 1, 'cash_secured_put': 2, 'naked_stock': 3}
