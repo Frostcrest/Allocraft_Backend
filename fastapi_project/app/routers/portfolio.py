@@ -11,6 +11,7 @@ import json
 import logging
 
 from app.database import get_db
+from app.dependencies import require_role
 from app.models_unified import Account, Position
 from app.models import SchwabAccount, SchwabPosition
 from app.utils.option_parser import parse_option_symbol
@@ -268,7 +269,8 @@ async def get_positions(
 @router.post("/sync/from-schwab-tables")
 def sync_from_schwab_tables(
     deactivate_missing: bool = True,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: dict = Depends(require_role("admin"))
 ):
     """Bridge existing Schwab tables into unified Account/Position.
 
