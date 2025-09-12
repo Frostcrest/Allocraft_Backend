@@ -6,7 +6,7 @@ Replaces schwab.py with source-agnostic approach.
 """
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, UTC
 import json
 import logging
 
@@ -71,7 +71,7 @@ async def import_positions(
                 day_trading_buying_power=account_data.get("day_trading_buying_power", 0.0),
                 
                 # Metadata
-                last_synced=datetime.utcnow(),
+                last_synced=datetime.now(UTC),
                 is_active=True
             )
             
@@ -148,7 +148,7 @@ async def import_positions(
                     status="Open" if position_data.get("is_active", True) else "Closed",
                     is_active=position_data.get("is_active", True),
                     raw_data=json.dumps(position_data) if position_data.get("raw_data") else None,
-                    last_updated=datetime.utcnow(),
+                    last_updated=datetime.now(UTC),
                     data_source="schwab_import"  # Track import source
                 )
                 
@@ -176,7 +176,7 @@ async def import_positions(
             "message": "Positions imported successfully to unified tables",
             "accounts_created": imported_accounts,
             "positions_created": imported_positions,
-            "import_timestamp": datetime.utcnow().isoformat(),
+            "import_timestamp": datetime.now(UTC).isoformat(),
             "source_export": import_data["export_info"],
             "data_source": "schwab_import"
         }
@@ -305,7 +305,7 @@ def sync_from_schwab_tables(
             u_acc.buying_power = float(getattr(s_acc, "buying_power", 0.0) or 0.0)
             u_acc.total_value = float(getattr(s_acc, "total_value", 0.0) or 0.0)
             u_acc.day_trading_buying_power = float(getattr(s_acc, "day_trading_buying_power", 0.0) or 0.0)
-            u_acc.last_synced = datetime.utcnow()
+            u_acc.last_synced = datetime.now(UTC)
             u_acc.is_active = True
             db.flush()
 
@@ -365,7 +365,7 @@ def sync_from_schwab_tables(
                 # Metadata
                 u_pos.is_active = True
                 u_pos.status = "Open"
-                u_pos.last_updated = datetime.utcnow()
+                u_pos.last_updated = datetime.now(UTC)
                 try:
                     u_pos.raw_data = s_pos.raw_data
                 except Exception:
@@ -390,7 +390,7 @@ def sync_from_schwab_tables(
                 for p in stale_positions:
                     p.is_active = False
                     p.status = "Closed"
-                    p.last_updated = datetime.utcnow()
+                    p.last_updated = datetime.now(UTC)
                     pos_deactivated += 1
 
         db.commit()
@@ -403,7 +403,7 @@ def sync_from_schwab_tables(
             "positions_created": pos_created,
             "positions_updated": pos_updated,
             "positions_deactivated": pos_deactivated,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "data_source": "schwab_bridge",
         }
     except Exception as e:
@@ -458,7 +458,7 @@ async def export_positions(db: Session = Depends(get_db)):
         
         export_data = {
             "export_info": {
-                "export_timestamp": datetime.utcnow().isoformat(),
+                "export_timestamp": datetime.now(UTC).isoformat(),
                 "total_accounts": len(accounts),
                 "total_positions": 0,
                 "source": "unified_tables"
