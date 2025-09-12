@@ -1,5 +1,15 @@
+import os
 import requests
 import json
+import pytest
+
+# Skip this integration test unless explicitly enabled
+RUN_INTEGRATION = os.getenv("RUN_INTEGRATION", "0").lower() in ("1", "true", "yes")
+if not RUN_INTEGRATION:
+    pytest.skip(
+        "Integration test (requires running backend at localhost:8000). Set RUN_INTEGRATION=1 to enable.",
+        allow_module_level=True,
+    )
 
 # Test script to verify mock endpoints
 BASE_URL = "http://localhost:8000"

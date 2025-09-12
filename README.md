@@ -187,18 +187,32 @@ python -m uvicorn app.main:app --reload
 
 ### Running Tests
 
-The backend includes a comprehensive testing suite:
+The backend includes unit tests and optional integration tests.
 
 ```powershell
-# Run all tests
+# Use the project venv
+venv\Scripts\activate
+
+# Run unit tests (default)
 python -m pytest
 
 # Run with coverage
 python -m pytest --cov=app
 
-# Run specific test files
-python -m pytest tests/test_stocks_crud.py
+# Run a specific test file
+python -m pytest fastapi_project\test_portfolio_bridge.py
+
+# Enable integration tests that hit a running server on http://localhost:8000
+# (start the API in another terminal first). In PowerShell:
+$env:RUN_INTEGRATION='1'; python -m pytest
+
+# Disable integration again (current shell only)
+Remove-Item Env:RUN_INTEGRATION -ErrorAction SilentlyContinue
 ```
+
+Notes:
+- Some tests (e.g., `fastapi_project/test_mock_data.py`) are marked as integration and are skipped by default unless `RUN_INTEGRATION=1` is set.
+- For local convenience, many tests assume `DISABLE_AUTH=1`; the suite sets this where needed. If running the API manually, you can set it in PowerShell with `$env:DISABLE_AUTH='1'`.
 
 ### Code Quality
 
