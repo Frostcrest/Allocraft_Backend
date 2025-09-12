@@ -1,5 +1,9 @@
+import os
 from fastapi.testclient import TestClient
 from datetime import datetime
+
+# Ensure auth is disabled for tests before importing the app (dependencies read this at import time)
+os.environ["DISABLE_AUTH"] = "1"
 
 from app.main import app
 from app.database import SessionLocal
