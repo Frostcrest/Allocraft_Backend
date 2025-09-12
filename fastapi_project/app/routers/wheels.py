@@ -30,9 +30,11 @@ from fastapi.responses import StreamingResponse
 import io
 import csv
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, UTC
 import math
-from typing import Optional, Dict, Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/wheels", tags=["Wheels"])
 
@@ -815,7 +817,7 @@ def calculate_days_to_expiration(expiration_date: str) -> int:
             exp_date = datetime.fromisoformat(expiration_date.replace("Z", "+00:00"))
         else:
             exp_date = datetime.fromisoformat(expiration_date)
-        today = datetime.now()
+        today = datetime.now(UTC)
         diff_time = exp_date - today
         return max(0, diff_time.days)
     except Exception:
@@ -958,28 +960,28 @@ def analyze_ticker_positions(
     call_options = [p for p in option_positions if p.option_type and p.option_type.upper() == 'CALL']
     put_options = [p for p in option_positions if p.option_type and p.option_type.upper() == 'PUT']
 
-    print(f"    📊 {ticker}: {len(stock_positions)} stocks, {len(call_options)} calls, {len(put_options)} puts")
+    logger.info("    4ca %s: %d stocks, %d calls, %d puts", ticker, len(stock_positions), len(call_options), len(put_options))
 
     # Calculate total stock holdings
     total_stock_shares = sum(p.shares for p in stock_positions)
 
     # Debug contracts for puts
     for p in put_options:
-        print(f"    📍 PUT {p.symbol}: contracts={p.contracts}")
+        logger.info("    4cd PUT %s: contracts=%s", p.symbol, p.contracts)
 
     # Separate long/short options - Use signed values
     short_calls = [p for p in call_options if (p.contracts or 0) < 0]
     short_puts = [p for p in put_options if (p.contracts or 0) < 0]
     
-    print(f"    🔍 Short puts found: {len(short_puts)}")
-    print(f"    🔍 Short calls found: {len(short_calls)}")
-    print(f"    🔍 Stock shares: {total_stock_shares}")
+    logger.info("    50d Short puts found: %d", len(short_puts))
+    logger.info("    50d Short calls found: %d", len(short_calls))
+    logger.info("    50d Stock shares: %s", total_stock_shares)
     
     # Debug detection results
     csp_result = is_cash_secured_put(short_puts)
     cc_result = is_covered_call(total_stock_shares, short_calls)
-    print(f"    🎯 CSP Detection: {csp_result} (short_puts={len(short_puts)})")
-    print(f"    🎯 CC Detection: {cc_result} (shares={total_stock_shares}, short_calls={len(short_calls)})")
+    logger.info("    3af CSP Detection: %s (short_puts=%d)", csp_result, len(short_puts))
+    logger.info("    3af CC Detection: %s (shares=%s, short_calls=%d)", cc_result, total_stock_shares, len(short_calls))
 
     # Enhanced position formatting
     formatted_positions = []
@@ -1235,20 +1237,20 @@ async def detect_wheel_strategies(
         grouped_positions = group_positions_by_ticker(detection_positions)
         results = []
         
-        print(f"🔍 DEBUG: Found {len(grouped_positions)} tickers to analyze")
+        logger.debug("50d DEBUG: Found %d tickers to analyze", len(grouped_positions))
         for ticker in grouped_positions.keys():
-            print(f"  - {ticker}: {len(grouped_positions[ticker])} positions")
+            logger.debug("  - %s: %d positions", ticker, len(grouped_positions[ticker]))
         
         for ticker, ticker_positions in grouped_positions.items():
-            print(f"\n🎯 Analyzing {ticker} with {len(ticker_positions)} positions...")
+            logger.info("\n3af Analyzing %s with %d positions...", ticker, len(ticker_positions))
             detection_result = analyze_ticker_positions(ticker, ticker_positions, request.options)
             if detection_result:
-                print(f"✅ Found opportunity: {detection_result.strategy} for {ticker}")
+                logger.info("197 Found opportunity: %s for %s", detection_result.strategy, ticker)
                 results.append(detection_result)
             else:
-                print(f"❌ No opportunity found for {ticker}")
+                logger.info("6ab No opportunity found for %s", ticker)
         
-        print(f"\n📊 Total opportunities found: {len(results)}")
+        logger.info("\n4ca Total opportunities found: %d", len(results))
         
         # Sort by strategy complexity and confidence score
         strategy_order = {'full_wheel': 0, 'covered_call': 1, 'cash_secured_put': 2, 'naked_stock': 3}
@@ -1492,7 +1494,7 @@ def update_wheel_cycle_status(
         
         # Update status and metadata
         cycle.status = status
-        cycle.last_status_update = datetime.utcnow()
+        cycle.last_status_update = datetime.now(UTC)
         
         db.commit()
         db.refresh(cycle)
@@ -1639,7 +1641,7 @@ def auto_detect_wheel_status(
             "confidence": confidence,
             "trigger_events": trigger_events,
             "recommendations": recommendations,
-            "analysis_timestamp": datetime.utcnow().isoformat(),
+            "analysis_timestamp": datetime.now(UTC).isoformat(),
             "position_analysis": {
                 "total_positions": 0,  # Would be calculated from actual positions
                 "has_stock_positions": False,
