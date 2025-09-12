@@ -21,6 +21,7 @@ app.include_router(portfolio_fast.router)  # Fast unified portfolio with progres
 """
 
 from fastapi import FastAPI
+import logging
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -43,6 +44,12 @@ app = FastAPI(
     title="Allocraft API",
     description="FastAPI backend for Allocraft Lite (stocks, options, wheels, auth).",
     version="1.0.1",
+)
+
+# Configure root logging once (INFO default)
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO"),
+    format="%(asctime)s %(levelname)s %(name)s - %(message)s",
 )
 
 # --- CORS configuration ---
