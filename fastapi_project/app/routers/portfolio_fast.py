@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from app.database import get_db
 from app.models_unified import Account, Position
-from datetime import datetime
+from datetime import datetime, UTC
 import logging
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
@@ -49,7 +49,7 @@ async def import_positions_fast(import_data: dict, db: Session = Depends(get_db)
                 total_value=account_data.get("total_value", 0.0),
                 cash_balance=account_data.get("cash_balance", 0.0),
                 buying_power=account_data.get("buying_power", 0.0),
-                last_synced=datetime.utcnow()
+                last_synced=datetime.now(UTC)
             )
             
             db.add(account)
@@ -83,7 +83,7 @@ async def import_positions_fast(import_data: dict, db: Session = Depends(get_db)
                     data_source="schwab_import",
                     status="Open",
                     is_active=True,
-                    last_updated=datetime.utcnow()
+                    last_updated=datetime.now(UTC)
                 )
                 
                 positions_to_add.append(position)
@@ -103,7 +103,7 @@ async def import_positions_fast(import_data: dict, db: Session = Depends(get_db)
             "message": "Fast import completed successfully!",
             "accounts_imported": len(accounts_data),
             "positions_imported": total_positions,
-            "import_timestamp": datetime.utcnow().isoformat()
+            "import_timestamp": datetime.now(UTC).isoformat()
         }
         
         print(f"🎉 IMPORT COMPLETE: {len(accounts_data)} accounts, {total_positions} positions")
