@@ -12,6 +12,7 @@ import logging
 
 from app.database import get_db
 from app.models_unified import Account, Position
+from app.models import SchwabAccount, SchwabPosition
 from app.utils.option_parser import parse_option_symbol
 
 logger = logging.getLogger(__name__)
@@ -262,6 +263,151 @@ async def get_positions(
     except Exception as e:
         logger.error(f"Error getting positions: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/sync/from-schwab-tables")
+def sync_from_schwab_tables(
+    deactivate_missing: bool = True,
+    db: Session = Depends(get_db)
+):
+    """Bridge existing Schwab tables into unified Account/Position.
+
+    This copies rows from schwab_accounts and schwab_positions into unified
+    accounts/positions with upsert-like behavior and data_source="schwab_bridge".
+
+    - Creates or updates unified Account by account_number
+    - Upserts Positions by (account_id, symbol) scoped to data_source="schwab_bridge"
+    - Optionally deactivates prior unified positions from this bridge that are no longer present
+    """
+    try:
+        accounts = db.query(SchwabAccount).all()
+        acc_created = acc_updated = 0
+        pos_created = pos_updated = pos_deactivated = 0
+
+        for s_acc in accounts:
+            # Upsert unified account
+            u_acc = db.query(Account).filter(Account.account_number == s_acc.account_number).first()
+            if not u_acc:
+                u_acc = Account(account_number=s_acc.account_number)
+                db.add(u_acc)
+                acc_created += 1
+            else:
+                acc_updated += 1
+
+            # Always set these fields from Schwab source
+            u_acc.account_type = getattr(s_acc, "account_type", None) or u_acc.account_type
+            u_acc.brokerage = "schwab"
+            u_acc.hash_value = getattr(s_acc, "hash_value", None) or u_acc.hash_value
+            u_acc.is_day_trader = bool(getattr(s_acc, "is_day_trader", False))
+            u_acc.cash_balance = float(getattr(s_acc, "cash_balance", 0.0) or 0.0)
+            u_acc.buying_power = float(getattr(s_acc, "buying_power", 0.0) or 0.0)
+            u_acc.total_value = float(getattr(s_acc, "total_value", 0.0) or 0.0)
+            u_acc.day_trading_buying_power = float(getattr(s_acc, "day_trading_buying_power", 0.0) or 0.0)
+            u_acc.last_synced = datetime.utcnow()
+            u_acc.is_active = True
+            db.flush()
+
+            # Collect current symbols for deactivation logic
+            current_symbols = set()
+
+            s_positions = db.query(SchwabPosition).filter(
+                SchwabPosition.account_id == s_acc.id,
+                SchwabPosition.is_active == True,
+            ).all()
+
+            for s_pos in s_positions:
+                symbol = s_pos.symbol
+                if not symbol:
+                    continue
+                current_symbols.add(symbol)
+
+                u_pos = db.query(Position).filter(
+                    Position.account_id == u_acc.id,
+                    Position.symbol == symbol,
+                    Position.data_source == "schwab_bridge",
+                ).first()
+
+                creating = False
+                if not u_pos:
+                    u_pos = Position(account_id=u_acc.id, symbol=symbol)
+                    u_pos.data_source = "schwab_bridge"
+                    db.add(u_pos)
+                    creating = True
+
+                # Map core fields
+                u_pos.underlying_symbol = getattr(s_pos, "underlying_symbol", None) or symbol
+                u_pos.asset_type = getattr(s_pos, "asset_type", None) or u_pos.asset_type or "UNKNOWN"
+                u_pos.instrument_cusip = getattr(s_pos, "instrument_cusip", None)
+
+                # Options
+                u_pos.option_type = getattr(s_pos, "option_type", None)
+                u_pos.strike_price = getattr(s_pos, "strike_price", None)
+                u_pos.expiration_date = getattr(s_pos, "expiration_date", None)
+
+                # Quantities
+                u_pos.long_quantity = float(getattr(s_pos, "long_quantity", 0.0) or 0.0)
+                u_pos.short_quantity = float(getattr(s_pos, "short_quantity", 0.0) or 0.0)
+                u_pos.settled_long_quantity = float(getattr(s_pos, "settled_long_quantity", 0.0) or 0.0)
+                u_pos.settled_short_quantity = float(getattr(s_pos, "settled_short_quantity", 0.0) or 0.0)
+
+                # Pricing / P&L
+                u_pos.market_value = float(getattr(s_pos, "market_value", 0.0) or 0.0)
+                u_pos.average_price = float(getattr(s_pos, "average_price", 0.0) or 0.0)
+                u_pos.average_long_price = float(getattr(s_pos, "average_long_price", 0.0) or 0.0)
+                u_pos.average_short_price = float(getattr(s_pos, "average_short_price", 0.0) or 0.0)
+                u_pos.current_day_profit_loss = float(getattr(s_pos, "current_day_profit_loss", 0.0) or 0.0)
+                u_pos.current_day_profit_loss_percentage = float(getattr(s_pos, "current_day_profit_loss_percentage", 0.0) or 0.0)
+                u_pos.long_open_profit_loss = float(getattr(s_pos, "long_open_profit_loss", 0.0) or 0.0)
+                u_pos.short_open_profit_loss = float(getattr(s_pos, "short_open_profit_loss", 0.0) or 0.0)
+
+                # Metadata
+                u_pos.is_active = True
+                u_pos.status = "Open"
+                u_pos.last_updated = datetime.utcnow()
+                try:
+                    u_pos.raw_data = s_pos.raw_data
+                except Exception:
+                    pass
+
+                if creating:
+                    pos_created += 1
+                else:
+                    pos_updated += 1
+
+            # Deactivate missing positions for this account from this bridge
+            if deactivate_missing:
+                q_inactive = db.query(Position).filter(
+                    Position.account_id == u_acc.id,
+                    Position.data_source == "schwab_bridge",
+                    Position.is_active == True,
+                )
+                # Only those not present now
+                if current_symbols:
+                    q_inactive = q_inactive.filter(~Position.symbol.in_(list(current_symbols)))
+                stale_positions = q_inactive.all()
+                for p in stale_positions:
+                    p.is_active = False
+                    p.status = "Closed"
+                    p.last_updated = datetime.utcnow()
+                    pos_deactivated += 1
+
+        db.commit()
+
+        return {
+            "message": "Schwab tables synced into unified models",
+            "accounts_processed": len(accounts),
+            "accounts_created": acc_created,
+            "accounts_updated": acc_updated,
+            "positions_created": pos_created,
+            "positions_updated": pos_updated,
+            "positions_deactivated": pos_deactivated,
+            "timestamp": datetime.utcnow().isoformat(),
+            "data_source": "schwab_bridge",
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error during Schwab bridge sync: {e}")
+        raise HTTPException(status_code=500, detail=f"Bridge sync failed: {str(e)}")
 
 
 @router.get("/positions/stocks")
