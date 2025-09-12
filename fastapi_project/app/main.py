@@ -87,6 +87,33 @@ def read_root():
 def healthz():
     return {"status": "ok"}
 
+@app.get("/health", tags=["Meta"])
+def health():
+    """Lightweight health endpoint.
+
+    Returns status, app version, UTC time, and a best-effort database connectivity flag.
+    Fails open on DB errors (no exception propagation) so health remains responsive.
+    """
+    from sqlalchemy import text
+    db_ok = False
+    try:
+        db = SessionLocal()
+        try:
+            # Minimal connectivity probe
+            db.execute(text("SELECT 1"))
+            db_ok = True
+        finally:
+            db.close()
+    except Exception:
+        db_ok = False
+
+    return {
+        "status": "ok",
+        "version": app.version,
+        "db_connected": db_ok,
+        "time_utc": datetime.now(UTC).isoformat(),
+    }
+
 # --- Database Initialization ---
 Base.metadata.create_all(bind=engine)
 
