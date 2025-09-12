@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
 from typing import Optional, Literal, Dict, Any
 from datetime import date, datetime
 
@@ -33,9 +33,8 @@ class StockCreate(StockBase):
 class StockRead(StockBase):
     """Schema for reading a stock position from the database."""
     id: int
-
-    class Config:
-        from_attributes = True  # Pydantic v2 compatible ORM mode
+    # Pydantic v2 config
+    model_config = ConfigDict(from_attributes=True)
 
 # --- TICKER SCHEMAS ---
 # These classes define the structure of data for ticker symbols (market data lookups).
@@ -58,9 +57,7 @@ class TickerCreate(BaseModel):
 class TickerRead(TickerBase):
     """Schema for reading a ticker from the database."""
     id: int
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # --- OPTION SCHEMAS ---
 # These classes define the structure of data for options contracts.
@@ -93,9 +90,7 @@ class OptionCreate(OptionBase):
 class OptionRead(OptionBase):
     """Schema for reading an option contract from the database."""
     id: int
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # --- WHEEL STRATEGY SCHEMAS ---
 # These classes define the structure of data for wheel strategy trades.
@@ -133,9 +128,7 @@ class WheelStrategyCreate(WheelStrategyBase):
 class WheelStrategyRead(WheelStrategyBase):
     """Schema for reading a wheel strategy trade from the database."""
     id: int
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # --- EVENT-BASED WHEEL SCHEMAS ---
 
@@ -169,8 +162,7 @@ class WheelCycleRead(WheelCycleBase):
     total_pnl: Optional[float] = None
     price_last_updated: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class WheelEventBase(BaseModel):
@@ -212,9 +204,7 @@ class WheelEventCreate(WheelEventBase):
 
 class WheelEventRead(WheelEventBase):
     id: int
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class WheelMetricsRead(BaseModel):
@@ -248,9 +238,7 @@ class LotCreate(LotBase):
 class LotRead(LotBase):
     id: int
     created_at: datetime
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class LotUpdate(BaseModel):
@@ -273,9 +261,7 @@ class LotLinkCreate(LotLinkBase):
 
 class LotLinkRead(LotLinkBase):
     id: int
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class LotMetricsRead(BaseModel):
@@ -299,9 +285,7 @@ class UserRead(UserBase):
     id: int
     is_active: bool
     roles: str
-
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class UserLogin(BaseModel):
     username: str

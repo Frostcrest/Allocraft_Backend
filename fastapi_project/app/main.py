@@ -40,10 +40,17 @@ from typing import Optional
 load_dotenv()
 
 # --- FastAPI App Configuration ---
+def _unique_operation_id(route):
+    # Generate stable unique IDs: method_path where path slashes/params are normalized
+    method = next(iter(route.methods or []), "get").lower()
+    path = route.path_format.replace("/", "_").replace("{", "").replace("}", "")
+    return f"{method}{path}"
+
 app = FastAPI(
     title="Allocraft API",
     description="FastAPI backend for Allocraft Lite (stocks, options, wheels, auth).",
     version="1.0.1",
+    generate_unique_id_function=_unique_operation_id,
 )
 
 # Configure root logging once (INFO default)

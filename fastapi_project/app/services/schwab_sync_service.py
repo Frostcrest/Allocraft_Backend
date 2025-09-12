@@ -112,8 +112,8 @@ class SchwabSyncService:
         """Check if account was synced recently"""
         if not account.last_synced:
             return False
-    threshold = datetime.now(UTC) - timedelta(minutes=minutes)
-    return account.last_synced > threshold
+        threshold = datetime.now(UTC) - timedelta(minutes=minutes)
+        return account.last_synced > threshold
     
     def update_account_info(self, account: SchwabAccount, account_details: Dict[str, Any]):
         """Update account-level information"""
@@ -200,8 +200,8 @@ class SchwabSyncService:
     def update_position(self, position: SchwabPosition, position_data: Dict[str, Any]):
         """Update existing position with new data"""
         self.update_position_values(position, position_data)
-    position.last_updated = datetime.now(UTC)
-    position.raw_data = json.dumps(position_data)
+        position.last_updated = datetime.now(UTC)
+        position.raw_data = json.dumps(position_data)
     
     def update_position_values(self, position: SchwabPosition, position_data: Dict[str, Any]):
         """Update position values from Schwab data"""
@@ -266,13 +266,10 @@ class SchwabSyncService:
                 ~SchwabPosition.symbol.in_(current_symbols)
             )
         )
-        
-    count = inactive_positions.count()
-    inactive_positions.update({"is_active": False, "last_updated": datetime.now(UTC)})
-        
+        count = inactive_positions.count()
+        inactive_positions.update({"is_active": False, "last_updated": datetime.now(UTC)})
         if count > 0:
             logger.info(f"Marked {count} positions as inactive")
-        
         return count
     
     def create_position_snapshot(self, account: SchwabAccount):
