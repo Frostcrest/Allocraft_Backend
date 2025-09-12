@@ -6,7 +6,7 @@ Fast, efficient import with real-time progress updates.
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from datetime import datetime
+from datetime import datetime, UTC
 import json
 import logging
 import time
@@ -74,9 +74,9 @@ async def import_positions_optimized(
                 "buying_power": account_data.get("buying_power", 0.0),
                 "total_value": account_data.get("total_value", 0.0),
                 "day_trading_buying_power": account_data.get("day_trading_buying_power", 0.0),
-                "last_synced": datetime.utcnow(),
+                "last_synced": datetime.now(UTC),
                 "is_active": True,
-                "created_at": datetime.utcnow()
+                "created_at": datetime.now(UTC)
             }
             accounts_to_insert.append(account_dict)
             
@@ -119,8 +119,8 @@ async def import_positions_optimized(
                     "short_open_profit_loss": pos_data.get("short_open_profit_loss", 0.0),
                     "status": "Open" if pos_data.get("is_active", True) else "Closed",
                     "is_active": pos_data.get("is_active", True),
-                    "last_updated": datetime.utcnow(),
-                    "created_at": datetime.utcnow(),
+                    "last_updated": datetime.now(UTC),
+                    "created_at": datetime.now(UTC),
                     "data_source": "schwab_import",
                     # Skip complex fields that cause slowdowns
                     "raw_data": None,  # Skip JSON serialization for speed
@@ -193,7 +193,7 @@ async def import_positions_optimized(
             "data": {
                 "accounts_created": final_account_count,
                 "positions_created": final_position_count,
-                "import_timestamp": datetime.utcnow().isoformat(),
+                "import_timestamp": datetime.now(UTC).isoformat(),
                 "data_source": "schwab_import"
             },
             "source_export": import_data["export_info"]

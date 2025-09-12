@@ -5,7 +5,7 @@ Provides realistic mock data that matches the exact structure of Schwab API resp
 This allows for local development without requiring HTTPS/production Schwab connection.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from typing import List, Dict, Any
 import random
 
@@ -21,14 +21,14 @@ class MockDataService:
             {
                 "accountNumber": "123456789",
                 "accountType": "Individual",
-                "lastSynced": datetime.utcnow().isoformat(),
+                "lastSynced": datetime.now(UTC).isoformat(),
                 "totalValue": 125678.45,
                 "positions": MockDataService._generate_mock_positions("123456789")
             },
             {
                 "accountNumber": "987654321", 
                 "accountType": "IRA",
-                "lastSynced": datetime.utcnow().isoformat(),
+                "lastSynced": datetime.now(UTC).isoformat(),
                 "totalValue": 89234.12,
                 "positions": MockDataService._generate_mock_positions("987654321")
             }
@@ -51,7 +51,7 @@ class MockDataService:
                 "profitLoss": 2400.00,
                 "profitLossPercentage": 4.59,
                 "assetType": "EQUITY",
-                "lastUpdated": datetime.utcnow().isoformat(),
+                "lastUpdated": datetime.now(UTC).isoformat(),
                 "accountNumber": account_number,
                 "source": "schwab",
                 "isOption": False,
@@ -66,7 +66,7 @@ class MockDataService:
                 "profitLoss": 2000.00,
                 "profitLossPercentage": 8.89,
                 "assetType": "EQUITY",
-                "lastUpdated": datetime.utcnow().isoformat(),
+                "lastUpdated": datetime.now(UTC).isoformat(),
                 "accountNumber": account_number,
                 "source": "schwab",
                 "isOption": False,
@@ -81,7 +81,7 @@ class MockDataService:
                 "profitLoss": 4000.00,
                 "profitLossPercentage": 4.55,
                 "assetType": "EQUITY", 
-                "lastUpdated": datetime.utcnow().isoformat(),
+                "lastUpdated": datetime.now(UTC).isoformat(),
                 "accountNumber": account_number,
                 "source": "schwab",
                 "isOption": False,
@@ -96,7 +96,7 @@ class MockDataService:
                 "profitLoss": 3000.00,
                 "profitLossPercentage": 4.65,
                 "assetType": "EQUITY",
-                "lastUpdated": datetime.utcnow().isoformat(), 
+                "lastUpdated": datetime.now(UTC).isoformat(), 
                 "accountNumber": account_number,
                 "source": "schwab",
                 "isOption": False,
@@ -116,14 +116,14 @@ class MockDataService:
                 "profitLoss": -150.00,
                 "profitLossPercentage": -5.00,
                 "assetType": "OPTION",
-                "lastUpdated": datetime.utcnow().isoformat(),
+                "lastUpdated": datetime.now(UTC).isoformat(),
                 "accountNumber": account_number,
                 "source": "schwab",
                 "isOption": True,
                 "underlyingSymbol": "AAPL",
                 "optionType": "Put",
                 "strikePrice": 170.00,
-                "expirationDate": (datetime.utcnow() + timedelta(days=45)).isoformat(),
+                "expirationDate": (datetime.now(UTC) + timedelta(days=45)).isoformat(),
                 "contracts": 3,
                 "isShort": True
             },
@@ -136,14 +136,14 @@ class MockDataService:
                 "profitLoss": 75.00,
                 "profitLossPercentage": 20.00,
                 "assetType": "OPTION",
-                "lastUpdated": datetime.utcnow().isoformat(),
+                "lastUpdated": datetime.now(UTC).isoformat(),
                 "accountNumber": account_number,
                 "source": "schwab",
                 "isOption": True,
                 "underlyingSymbol": "TSLA",
                 "optionType": "Call",
                 "strikePrice": 250.00,
-                "expirationDate": (datetime.utcnow() + timedelta(days=30)).isoformat(),
+                "expirationDate": (datetime.now(UTC) + timedelta(days=30)).isoformat(),
                 "contracts": 1,
                 "isShort": True
             },
@@ -156,14 +156,14 @@ class MockDataService:
                 "profitLoss": -500.00,
                 "profitLossPercentage": -20.83,
                 "assetType": "OPTION",
-                "lastUpdated": datetime.utcnow().isoformat(),
+                "lastUpdated": datetime.now(UTC).isoformat(),
                 "accountNumber": account_number,
                 "source": "schwab",
                 "isOption": True,
                 "underlyingSymbol": "NVDA",
                 "optionType": "Put",
                 "strikePrice": 420.00,
-                "expirationDate": (datetime.utcnow() + timedelta(days=15)).isoformat(),
+                "expirationDate": (datetime.now(UTC) + timedelta(days=15)).isoformat(),
                 "contracts": 2,
                 "isShort": False
             },
@@ -176,14 +176,14 @@ class MockDataService:
                 "profitLoss": 250.00,
                 "profitLossPercentage": 41.67,
                 "assetType": "OPTION",
-                "lastUpdated": datetime.utcnow().isoformat(),
+                "lastUpdated": datetime.now(UTC).isoformat(),
                 "accountNumber": account_number,
                 "source": "schwab",
                 "isOption": True,
                 "underlyingSymbol": "SPY",
                 "optionType": "Put",
                 "strikePrice": 425.00,
-                "expirationDate": (datetime.utcnow() + timedelta(days=10)).isoformat(),
+                "expirationDate": (datetime.now(UTC) + timedelta(days=10)).isoformat(),
                 "contracts": 2,
                 "isShort": True
             }
@@ -201,7 +201,7 @@ class MockDataService:
                 "force": False,
                 "accounts_synced": 2,
                 "positions_total": 12,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(UTC).isoformat()
             }
         }
     
@@ -209,8 +209,8 @@ class MockDataService:
     def generate_mock_sync_status() -> Dict[str, Any]:
         """Generate mock sync status"""
         return {
-            "last_sync": (datetime.utcnow() - timedelta(minutes=5)).isoformat(),
+            "last_sync": (datetime.now(UTC) - timedelta(minutes=5)).isoformat(),
             "accounts_count": 2,
             "positions_count": 12,
-            "next_sync_recommended": (datetime.utcnow() + timedelta(hours=1)).isoformat()
+            "next_sync_recommended": (datetime.now(UTC) + timedelta(hours=1)).isoformat()
         }
