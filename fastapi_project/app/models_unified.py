@@ -5,7 +5,7 @@ This replaces both legacy and Schwab-specific models with a unified,
 objectively better data structure that handles any brokerage source.
 """
 from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean
-from datetime import datetime
+from datetime import datetime, UTC
 from .database import Base
 
 class Account(Base):
@@ -28,9 +28,9 @@ class Account(Base):
     day_trading_buying_power = Column(Float, default=0.0)
     
     # Metadata
-    last_synced = Column(DateTime, default=datetime.utcnow)
+    last_synced = Column(DateTime, default=lambda: datetime.now(UTC))
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
 
 
 class Position(Base):
@@ -78,11 +78,11 @@ class Position(Base):
     status = Column(String, default="Open")  # Open, Closed, Sold
     
     # Metadata
-    last_updated = Column(DateTime, default=datetime.utcnow)
+    last_updated = Column(DateTime, default=lambda: datetime.now(UTC))
     price_last_updated = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True)
     raw_data = Column(String)  # Store original API response for debugging
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
     
     # Source tracking (for data lineage)
     data_source = Column(String, default="manual")  # manual, schwab, fidelity, etc.
@@ -96,7 +96,7 @@ class PortfolioSnapshot(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     account_id = Column(Integer, ForeignKey("accounts.id"), nullable=False)
-    snapshot_date = Column(DateTime, default=datetime.utcnow)
+    snapshot_date = Column(DateTime, default=lambda: datetime.now(UTC))
     
     # Aggregate metrics
     total_positions = Column(Integer, default=0)

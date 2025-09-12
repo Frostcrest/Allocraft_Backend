@@ -10,7 +10,7 @@ from typing import Dict, Any, Optional
 import base64
 from urllib.parse import urlencode
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from ..dependencies import get_current_user
@@ -153,7 +153,7 @@ async def store_user_schwab_tokens(db: Session, user: models.User, tokens: Dict[
     
     # Calculate expiration time (Schwab tokens typically expire in 30 minutes)
     expires_in = tokens.get("expires_in", 1800)  # Default 30 minutes
-    user.schwab_token_expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
+    user.schwab_token_expires_at = datetime.now(UTC) + timedelta(seconds=expires_in)
     user.schwab_account_linked = True  # Mark account as linked
     
     db.commit()
@@ -165,7 +165,7 @@ async def get_user_schwab_token(db: Session, user: models.User) -> Optional[str]
     # Check if we have a valid token
     if (user.schwab_access_token and 
         user.schwab_token_expires_at and 
-        user.schwab_token_expires_at > datetime.utcnow()):
+    user.schwab_token_expires_at > datetime.now(UTC)):
         return user.schwab_access_token
     
     # Try to refresh the token if we have a refresh token
@@ -392,7 +392,7 @@ async def get_schwab_status(
     has_valid_token = (
         current_user.schwab_access_token and 
         current_user.schwab_token_expires_at and 
-        current_user.schwab_token_expires_at > datetime.utcnow()
+        current_user.schwab_token_expires_at > datetime.now(UTC)
     )
     
     return {
@@ -486,7 +486,7 @@ async def sync_positions(
                 "force": force,
                 "accounts_synced": len(fresh_data),
                 "positions_total": sum(len(account.get("positions", [])) for account in fresh_data),
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(UTC).isoformat()
             }
         }
         
@@ -509,7 +509,7 @@ async def get_sync_status(
             is_recent = False
             
             if last_sync:
-                threshold = datetime.utcnow() - timedelta(minutes=5)
+                threshold = datetime.now(UTC) - timedelta(minutes=5)
                 is_recent = last_sync > threshold
             
             position_count = db.query(SchwabPosition).filter(
@@ -656,7 +656,7 @@ async def fetch_fresh_positions_from_schwab(db: Session, current_user: User):
                         account_result = {
                             "accountNumber": account_number,
                             "accountType": securities_account.get("type", ""),
-                            "lastSynced": datetime.utcnow().isoformat(),
+                            "lastSynced": datetime.now(UTC).isoformat(),
                             "totalValue": securities_account.get("currentBalances", {}).get("liquidationValue", 0),
                             "positions": positions
                         }
@@ -690,7 +690,7 @@ async def store_schwab_data_in_database(db: Session, accounts_data: list, curren
                     hash_value=account_number,  # We'll use account_number as hash for now
                     account_type=account_data.get("accountType", ""),
                     total_value=account_data.get("totalValue", 0),
-                    last_synced=datetime.utcnow()
+                    last_synced=datetime.now(UTC)
                 )
                 db.add(new_account)
                 db.flush()  # Get the ID
@@ -698,7 +698,7 @@ async def store_schwab_data_in_database(db: Session, accounts_data: list, curren
             else:
                 # Update existing account
                 existing_account.total_value = account_data.get("totalValue", 0)
-                existing_account.last_synced = datetime.utcnow()
+                existing_account.last_synced = datetime.now(UTC)
                 account_id = existing_account.id
             
             # Mark all existing positions as inactive first
@@ -728,7 +728,7 @@ async def store_schwab_data_in_database(db: Session, accounts_data: list, curren
                     existing_position.average_price = position_data.get("averagePrice", 0)
                     existing_position.current_day_profit_loss = position_data.get("unrealizedPL", 0)
                     existing_position.is_active = True
-                    existing_position.last_updated = datetime.utcnow()
+                    existing_position.last_updated = datetime.now(UTC)
                     
                     # Update option-specific fields
                     if position_data.get("isOption"):
@@ -749,7 +749,7 @@ async def store_schwab_data_in_database(db: Session, accounts_data: list, curren
                         average_price=position_data.get("averagePrice", 0),
                         current_day_profit_loss=position_data.get("unrealizedPL", 0),
                         is_active=True,
-                        last_updated=datetime.utcnow()
+                        last_updated=datetime.now(UTC)
                     )
                     
                     # Add option-specific fields
@@ -842,7 +842,7 @@ async def load_mock_data(
                 hash_value=f"mock_hash_{account_data['accountNumber']}",
                 account_type=account_data["accountType"],
                 is_day_trader=False,
-                last_synced=datetime.utcnow(),
+                last_synced=datetime.now(UTC),
                 cash_balance=25000.0,
                 buying_power=50000.0,
                 total_value=account_data["totalValue"],
@@ -871,7 +871,7 @@ async def load_mock_data(
                     current_day_profit_loss_percentage=pos_data["profitLossPercentage"],
                     long_open_profit_loss=pos_data["profitLoss"] if not pos_data.get("isShort", False) else 0.0,
                     short_open_profit_loss=pos_data["profitLoss"] if pos_data.get("isShort", False) else 0.0,
-                    last_updated=datetime.utcnow(),
+                    last_updated=datetime.now(UTC),
                     is_active=True
                 )
                 
@@ -895,7 +895,7 @@ async def load_mock_data(
             "result": {
                 "accounts_created": created_accounts,
                 "positions_created": created_positions,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(UTC).isoformat()
             }
         }
         
@@ -979,7 +979,7 @@ async def export_positions(
         
         export_data = {
             "export_info": {
-                "export_timestamp": datetime.utcnow().isoformat(),
+                "export_timestamp": datetime.now(UTC).isoformat(),
                 "total_accounts": len(accounts)
             },
             "accounts": []
@@ -1110,7 +1110,7 @@ async def import_positions(
                 cash_balance=account_data.get("cash_balance", 0.0),
                 total_value=account_data.get("total_value", 0.0),
                 day_trading_buying_power=account_data.get("day_trading_buying_power", 0.0),
-                last_synced=datetime.utcnow()
+                last_synced=datetime.now(UTC)
             )
             
             db.add(new_account)
@@ -1148,7 +1148,7 @@ async def import_positions(
                     strike_price=position_data.get("strike_price"),
                     is_active=position_data.get("is_active", True),
                     raw_data=position_data.get("raw_data"),
-                    last_updated=datetime.utcnow()
+                    last_updated=datetime.now(UTC)
                 )
                 
                 # Handle expiration date
@@ -1169,7 +1169,7 @@ async def import_positions(
             "message": "Positions imported successfully",
             "accounts_created": imported_accounts,
             "positions_created": imported_positions,
-            "import_timestamp": datetime.utcnow().isoformat(),
+            "import_timestamp": datetime.now(UTC).isoformat(),
             "source_export": import_data["export_info"]
         }
         
