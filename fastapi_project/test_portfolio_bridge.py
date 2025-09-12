@@ -76,3 +76,13 @@ def test_bridge_sync_populates_unified_positions():
     assert positions[0]["symbol"] == "HIMS"
     assert positions[0]["asset_type"] == "EQUITY"
     assert positions[0]["status"] == "Open"
+
+
+def test_health_endpoint():
+    r = client.get("/health")
+    assert r.status_code == 200
+    body = r.json()
+    assert body.get("status") == "ok"
+    assert "db_connected" in body
+    assert "version" in body
+    assert "time_utc" in body
