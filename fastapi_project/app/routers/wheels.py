@@ -30,7 +30,7 @@ from fastapi.responses import StreamingResponse
 import io
 import csv
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, UTC
 import math
 from typing import Optional, Dict, Any
 
@@ -1492,11 +1492,9 @@ def update_wheel_cycle_status(
         
         # Update status and metadata
         cycle.status = status
-        cycle.last_status_update = datetime.utcnow()
-        
+        cycle.last_status_update = datetime.now(UTC)
         db.commit()
         db.refresh(cycle)
-        
         return {
             "id": cycle.id,
             "cycle_key": cycle.cycle_key,
@@ -1639,7 +1637,7 @@ def auto_detect_wheel_status(
             "confidence": confidence,
             "trigger_events": trigger_events,
             "recommendations": recommendations,
-            "analysis_timestamp": datetime.utcnow().isoformat(),
+            "analysis_timestamp": datetime.now(UTC).isoformat(),
             "position_analysis": {
                 "total_positions": 0,  # Would be calculated from actual positions
                 "has_stock_positions": False,
