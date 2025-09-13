@@ -43,12 +43,23 @@ router = APIRouter(prefix="/wheels", tags=["Wheels"])
 @router.get("/", response_model=list[schemas.WheelStrategyRead])
 def read_wheels(db: Session = Depends(get_db)):
     """Get all legacy (CSV-style) wheel strategies."""
-    return WheelService.get_all_wheels(db)
+    try:
+        return WheelService.get_all_wheels(db)
+    except Exception as e:
+        logger.error(f"Failed to get wheels: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get wheels")
 
 @router.post("/", response_model=schemas.WheelStrategyRead)
 def create_wheel(wheel: schemas.WheelStrategyCreate, db: Session = Depends(get_db)):
     """Add a new legacy wheel strategy."""
-    return WheelService.create_wheel(db, wheel)
+    try:
+        return WheelService.create_wheel(db, wheel)
+    except ValueError as e:
+        logger.error(f"Invalid wheel creation: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to create wheel: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to create wheel")
 
 
 @router.post("/detect", response_model=List[WheelDetectionResult])
@@ -59,66 +70,75 @@ async def detect_wheel_strategies(
     """Enhanced wheel strategy detection with unified data model integration."""
     try:
         return WheelService.detect_wheel_strategies(request, db)
+    except ValueError as e:
+        logger.error(f"Detection error: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to detect wheel strategies: {str(e)}"
-        )
+        logger.error(f"Failed to detect wheel strategies: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to detect wheel strategies")
 @router.put("/wheel_events/{event_id}", response_model=schemas.WheelEventRead)
 def update_wheel_event(event_id: int, payload: schemas.WheelEventCreate, db: Session = Depends(get_db)):
     """Update a wheel event by ID."""
-    return WheelService.update_wheel_event(db, event_id, payload)
+    try:
+        updated = WheelService.update_wheel_event(db, event_id, payload)
+        if not updated:
+            raise HTTPException(status_code=404, detail="Wheel event not found")
+        return updated
+    except ValueError as e:
+        logger.error(f"Update error: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to update wheel event: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to update wheel event")
 
 
 @router.delete("/wheel-events/{event_id}")
 @router.delete("/wheel_events/{event_id}")
 def delete_wheel_event(event_id: int, db: Session = Depends(get_db)):
     """Delete a wheel event by ID."""
-    ok = WheelService.delete_wheel_event(db, event_id)
-    if not ok:
-        raise HTTPException(status_code=404, detail="Wheel event not found")
-    return {"detail": "Wheel event deleted"}
+    try:
+        ok = WheelService.delete_wheel_event(db, event_id)
+        if not ok:
+            raise HTTPException(status_code=404, detail="Wheel event not found")
+        return {"detail": "Wheel event deleted"}
+    except Exception as e:
+        logger.error(f"Failed to delete wheel event: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to delete wheel event")
 
 
 @router.get("/wheel-metrics/{cycle_id}", response_model=schemas.WheelMetricsRead)
 @router.get("/wheel_metrics/{cycle_id}", response_model=schemas.WheelMetricsRead)
 def get_wheel_metrics(cycle_id: int, db: Session = Depends(get_db)):
     """Get summary wheel metrics for a cycle."""
-    return WheelService.get_wheel_metrics(db, cycle_id)
+    try:
+        return WheelService.get_wheel_metrics(db, cycle_id)
+    except Exception as e:
+        logger.error(f"Failed to get wheel metrics: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get wheel metrics")
 
 
 @router.post("/refresh-prices")
 def refresh_wheel_prices(db: Session = Depends(get_db)):
-    """Refresh real-time prices for all active wheel cycles.
-    
-    Updates current option values and recalculates P&L for all open wheel strategies.
-    Uses yfinance to fetch current option market prices.
-    
-    Returns: Summary of refresh results with updated P&L values
-    """
+    """Refresh real-time prices for all active wheel cycles."""
     try:
         from ..services.wheel_pnl_service import WheelPnLCalculator
-        
-        # Initialize the P&L calculator
         calculator = WheelPnLCalculator(db)
-        
-        # Refresh all wheel cycle P&L
         result = calculator.refresh_all_wheel_pnl()
-        
         return result
-        
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to refresh wheel prices: {str(e)}"
-        )
+        logger.error(f"Failed to refresh wheel prices: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to refresh wheel prices")
 
 
 # --- Lot endpoints ---
 @router.get("/cycles/{cycle_id}/lots", response_model=list[schemas.LotRead])
 def list_cycle_lots(cycle_id: int, status: str | None = None, covered: bool | None = None, ticker: str | None = None, db: Session = Depends(get_db)):
     """List 100-share lots for a cycle with optional filters."""
-    return WheelService.list_cycle_lots(db, cycle_id, status, covered, ticker)
+    try:
+        return WheelService.list_cycle_lots(db, cycle_id, status, covered, ticker)
+    except Exception as e:
+        logger.error(f"Failed to list lots: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to list lots")
 
 
 @router.get("/lots/{lot_id}", response_model=schemas.LotRead)
