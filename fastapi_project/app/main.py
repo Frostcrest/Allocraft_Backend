@@ -3,7 +3,8 @@ Allocraft FastAPI App
 
 Beginner guide:
 - Serves the API and a simple static UI at '/'.
--# --- Routers ---
+
+# --- Routers ---
 from .routers import stocks, options, wheels, tickers, auth, users, importer, dashboard, schwab, portfolio_fast  # noqa: E402
 
 app.include_router(auth.router)
@@ -124,34 +125,10 @@ def health():
 # --- Database Initialization ---
 Base.metadata.create_all(bind=engine)
 
-# --- Ensure a default admin user exists ---
-def _ensure_default_admin():
-    """Create a default admin user (admin/admin123) if missing.
-    Intended for development; safe no-op if the user already exists.
-    """
-    try:
-        from .models import User  # local import to avoid circulars at module import
-        from .utils.security import hash_password
-        db = SessionLocal()
-        try:
-            existing = db.query(User).filter(User.username == "admin").first()
-            if not existing:
-                user = User(
-                    username="admin",
-                    email="admin@example.com",
-                    hashed_password=hash_password("admin123"),
-                    is_active=True,
-                    roles="admin",
-                )
-                db.add(user)
-                db.commit()
-        finally:
-            db.close()
-    except Exception:
-        # Fail-open: do not crash app if DB is unavailable at import time
-        pass
 
-_ensure_default_admin()
+# --- Ensure a default admin user exists ---
+from .startup_admin import ensure_default_admin
+ensure_default_admin()
 
 # --- Routers ---
 from .routers import stocks, options, wheels, tickers, auth, users, importer, dashboard, schwab, portfolio_fast, portfolio, stocks_fast  # noqa: E402
@@ -204,49 +181,9 @@ def get_wheel_expiries(ticker: str):
         return []
 
 # --- Optional: Seed-drop CSV importer on startup ---
-from fastapi import BackgroundTasks
-from .database import SessionLocal
 
-def _import_seed_drop_folder(folder: Optional[str]):
-    if not folder:
-        return
-    try:
-        basedir = Path(folder)
-        if not basedir.exists() or not basedir.is_dir():
-            return
-        db = SessionLocal()
-        try:
-            # Wheels: only scan wheels subfolder
-            wheels_dir = basedir / "wheels"
-            if wheels_dir.exists() and wheels_dir.is_dir():
-                from .importers.wheel_tracker import import_wheel_tracker_csv
-                for csv_path in sorted(wheels_dir.glob("*.csv")):
-                    try:
-                        import_wheel_tracker_csv(db, str(csv_path))
-                    except Exception:
-                        continue
-            # Stocks: scan stocks subfolder
-            stocks_dir = basedir / "stocks"
-            if stocks_dir.exists() and stocks_dir.is_dir():
-                from .importers.stock_importer import import_stock_csv
-                for csv_path in sorted(stocks_dir.glob("*.csv")):
-                    try:
-                        import_stock_csv(db, str(csv_path))
-                    except Exception:
-                        continue
-            # Options: scan options subfolder
-            options_dir = basedir / "options"
-            if options_dir.exists() and options_dir.is_dir():
-                from .importers.option_importer import import_option_csv
-                for csv_path in sorted(options_dir.glob("*.csv")):
-                    try:
-                        import_option_csv(db, str(csv_path))
-                    except Exception:
-                        continue
-        finally:
-            db.close()
-    except Exception:
-        pass
+# --- Seed-drop CSV importer on startup ---
+from .seed_importer import import_seed_drop_folder
 
 seed_drop_dir = os.getenv("SEED_DROP_DIR")
 if not seed_drop_dir:
@@ -254,4 +191,4 @@ if not seed_drop_dir:
     seed_drop_dir = str((BASE_DIR.parent / "seed_drop").resolve())
 
 # Import synchronously during startup; folder-based and idempotent
-_import_seed_drop_folder(seed_drop_dir)
+import_seed_drop_folder(seed_drop_dir)
