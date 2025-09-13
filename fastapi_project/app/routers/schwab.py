@@ -770,10 +770,6 @@ async def store_schwab_data_in_database(db: Session, accounts_data: list, curren
         logger.error(f"Error storing Schwab data: {str(e)}")
         raise
 
-# ========================================
-# MOCK DATA ENDPOINTS FOR DEVELOPMENT
-# ========================================
-
 @router.get("/mock/positions")
 async def get_mock_positions():
     """Get mock positions for development (matches exact Schwab API structure)"""
