@@ -6,7 +6,7 @@ handling both long and short positions with strategy-specific logic.
 """
 
 from typing import Dict, Optional, List, Any
-from datetime import datetime, date
+from datetime import datetime, date, UTC
 import logging
 
 logger = logging.getLogger(__name__)
@@ -122,7 +122,7 @@ class OptionPnLCalculator:
             return {
                 **basic_pnl,
                 **strategy_insights,
-                "calculation_timestamp": datetime.now().isoformat(),
+                "calculation_timestamp": datetime.now(UTC).isoformat(),
                 "strategy_type": strategy_type or "unknown"
             }
             
@@ -245,7 +245,7 @@ class OptionPnLCalculator:
                 "losing_positions": losing_positions,
                 "win_rate_percent": round(win_rate, 2),
                 "strategy_breakdown": strategy_breakdown,
-                "calculation_timestamp": datetime.now().isoformat()
+                "calculation_timestamp": datetime.now(UTC).isoformat()
             }
             
         except Exception as e:
@@ -260,7 +260,7 @@ class OptionPnLCalculator:
                 "losing_positions": 0,
                 "win_rate_percent": 0.0,
                 "strategy_breakdown": {},
-                "calculation_timestamp": datetime.now().isoformat()
+                "calculation_timestamp": datetime.now(UTC).isoformat()
             }
 
 
