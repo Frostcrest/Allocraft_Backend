@@ -16,7 +16,7 @@ if str(FASTAPI_DIR) not in sys.path:
 # Change CWD so sqlite relative path is created inside fastapi_project
 os.chdir(str(FASTAPI_DIR))
 
-from app.main import app  # type: ignore  # noqa: E402
+from fastapi_project.app.main import app  # type: ignore  # noqa: E402
 
 client = TestClient(app)
 
