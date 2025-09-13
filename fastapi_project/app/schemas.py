@@ -313,6 +313,79 @@ class Token(BaseModel):
     access_token: str
     token_type: str
 
+
+# --- WHEEL DETECTION SCHEMAS ---
+class WheelDetectionRequest(BaseModel):
+    positions: list[dict[str, Any]] = Field(..., description="List of position dicts to analyze")
+    tickers: Optional[list[str]] = Field(None, description="Optional list of tickers to filter detection")
+    # Add more fields as needed for detection context
+
+class WheelDetectionResult(BaseModel):
+    ticker: str
+    detected_strategy: str
+    confidence: str
+    confidence_score: float
+    details: Optional[dict[str, Any]] = None
+    # Add more fields as needed for detection output
+
+
+# --- WHEEL DETECTION SCHEMAS ---
+from typing import List as TypingList
+
+class PositionForDetection(BaseModel):
+    id: str
+    symbol: str
+    shares: float
+    is_option: bool
+    underlying_symbol: Optional[str] = None
+    option_type: Optional[str] = None
+    strike_price: Optional[float] = None
+    expiration_date: Optional[str] = None
+    contracts: Optional[float] = None
+    market_value: Optional[float] = None
+    source: Optional[str] = None
+
+class RiskAssessment(BaseModel):
+    level: str
+    factors: TypingList[str]
+    assignment_risk: float
+
+class PotentialAction(BaseModel):
+    action: str
+    description: str
+    priority: str
+
+class EnhancedPosition(BaseModel):
+    type: str
+    symbol: str
+    quantity: float
+    position: str
+    strike_price: Optional[float] = None
+    expiration_date: Optional[str] = None
+    days_to_expiration: Optional[int] = None
+    market_value: Optional[float] = None
+    raw_quantity: Optional[float] = None
+    source: Optional[str] = None
+
+class WheelDetectionRequest(BaseModel):
+    account_id: Optional[int] = None
+    specific_tickers: Optional[TypingList[str]] = None
+    options: Optional[Dict[str, Any]] = None
+
+class WheelDetectionResult(BaseModel):
+    ticker: str
+    strategy: str
+    confidence: str
+    confidence_score: int
+    description: str
+    risk_assessment: RiskAssessment
+    positions: TypingList[EnhancedPosition]
+    recommendations: TypingList[str]
+    potential_actions: TypingList[PotentialAction]
+    market_context: Optional[Dict[str, Any]] = None
+    cash_required: Optional[float] = None
+    cash_validated: Optional[bool] = None
+
 class TokenData(BaseModel):
     username: Optional[str] = None
     roles: Optional[str] = None
