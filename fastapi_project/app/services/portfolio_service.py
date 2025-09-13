@@ -68,7 +68,13 @@ class PortfolioService:
                     db.add(new_pos)
             db.commit()
             logger.info("Schwab sync to unified tables complete.")
-            return {"message": "Schwab sync complete", "accounts": len(schwab_accounts), "positions": len(schwab_positions)}
+            return {
+                "message": "Schwab sync complete",
+                "accounts": len(schwab_accounts),
+                "positions": len(schwab_positions),
+                "accounts_processed": len(schwab_accounts),
+                "positions_created": len(schwab_positions)
+            }
         except Exception as e:
             db.rollback()
             logger.error(f"Error during Schwab bridge sync: {e}")

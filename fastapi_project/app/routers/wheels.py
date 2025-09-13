@@ -1,3 +1,32 @@
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+from .. import schemas, crud, models
+from ..schemas import WheelDetectionRequest, WheelDetectionResult
+from ..services.wheel_service import WheelService
+from ..models_unified import Position
+from ..database import get_db
+from ..crud_optimized import BatchLoaderService, MetricsService, refresh_prices_batch
+from fastapi.responses import StreamingResponse
+import io
+import csv
+from typing import Optional, Dict, Any, List
+from datetime import datetime, UTC
+import math
+import logging
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/wheels", tags=["Wheels"])
+
+@router.get("/cycles")
+def list_wheel_cycles(db: Session = Depends(get_db)):
+    """List all wheel cycles (for API smoke test compatibility)."""
+    try:
+        return WheelService.list_wheel_cycles(db)
+    except Exception as e:
+        logger.error(f"Failed to list wheel cycles: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to list wheel cycles")
 """
 Wheels Router
 
@@ -38,7 +67,17 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 router = APIRouter(prefix="/wheels", tags=["Wheels"])
+
+@router.get("/cycles")
+def list_wheel_cycles(db: Session = Depends(get_db)):
+    """List all wheel cycles (for API smoke test compatibility)."""
+    try:
+        return WheelService.list_wheel_cycles(db)
+    except Exception as e:
+        logger.error(f"Failed to list wheel cycles: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to list wheel cycles")
 
 @router.get("/", response_model=list[schemas.WheelStrategyRead])
 def read_wheels(db: Session = Depends(get_db)):
