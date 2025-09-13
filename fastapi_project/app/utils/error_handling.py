@@ -9,7 +9,7 @@ This module provides:
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Dict, Any, Optional
 from enum import Enum
 
@@ -73,7 +73,7 @@ class AppError(Exception):
         self.context = context or {}
         self.user_message = user_message or self._get_default_user_message(code)
         self.status_code = status_code
-        self.timestamp = datetime.now().isoformat()
+        self.timestamp = datetime.now(UTC).isoformat()
         
     def _get_default_user_message(self, code: ErrorCode) -> str:
         """Generate user-friendly messages for error codes"""
