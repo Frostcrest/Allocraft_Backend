@@ -1,10 +1,3 @@
-"""
-Users Router
-
-Beginner guide:
-- Admin-only endpoints for listing and managing users.
-- Use /auth/register or /users (admin) to create accounts.
-"""
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -12,8 +5,14 @@ from .. import schemas, crud, models
 from ..services.users_service import UsersService
 from ..database import get_db
 from ..dependencies import require_role
+from ..routers.auth import get_current_user
 
 router = APIRouter(prefix="/users", tags=["Users"])
+
+# Add GET /users/me endpoint for compatibility with test_api_smoke.py
+@router.get("/me", response_model=schemas.UserRead)
+def read_users_me(current_user: models.User = Depends(get_current_user)):
+    return current_user
 
 
 @router.post("/", response_model=list[schemas.UserRead] | schemas.UserRead)
