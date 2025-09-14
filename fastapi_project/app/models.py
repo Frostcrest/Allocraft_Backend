@@ -151,10 +151,7 @@ class UserProfile(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
 
-class Test(Base):
-    __tablename__ = "tests"
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String)
+
 
 class SpreadOption(Base):
     __tablename__ = "spread_options"

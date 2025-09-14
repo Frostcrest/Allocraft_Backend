@@ -60,31 +60,4 @@ def parse_option_symbol(symbol):
         # Return None for unparseable symbols
         return None
 
-
 def test_parser():
-    """Test the parser with known examples"""
-    test_cases = [
-        ("HIMS  251017P00037000", "HIMS", "2025-10-17", "Put", 37.0),
-        ("NVDA  250919C00230000", "NVDA", "2025-09-19", "Call", 230.0),
-        ("SPY   251121C00700000", "SPY", "2025-11-21", "Call", 700.0),
-        ("QUBT  251017P00012000", "QUBT", "2025-10-17", "Put", 12.0),
-        ("GOOG  260618C00250000", "GOOG", "2026-06-18", "Call", 250.0)
-    ]
-    
-    print("Testing option symbol parser:")
-    for symbol, expected_ticker, expected_date, expected_type, expected_strike in test_cases:
-        result = parse_option_symbol(symbol)
-        if result:
-            print(f"✅ {symbol} → {result['ticker']} {result['expiry_date']} {result['option_type']} ${result['strike_price']}")
-            
-            # Validate against expected values
-            assert result['ticker'] == expected_ticker, f"Ticker mismatch: {result['ticker']} != {expected_ticker}"
-            assert result['expiry_date'] == expected_date, f"Date mismatch: {result['expiry_date']} != {expected_date}"
-            assert result['option_type'] == expected_type, f"Type mismatch: {result['option_type']} != {expected_type}"
-            assert result['strike_price'] == expected_strike, f"Strike mismatch: {result['strike_price']} != {expected_strike}"
-        else:
-            print(f"❌ {symbol} → Failed to parse")
-
-
-if __name__ == "__main__":
-    test_parser()

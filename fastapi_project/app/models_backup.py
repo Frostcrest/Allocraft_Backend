@@ -323,12 +323,6 @@ class UserProfile(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     bio = Column(String)
 
-class Test(Base):
-    """Test model for development purposes"""
-    __tablename__ = "tests"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String)
 
 class SpreadOption(Base):
     """Model for option spread strategies"""
