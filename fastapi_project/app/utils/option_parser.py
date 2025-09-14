@@ -61,3 +61,4 @@ def parse_option_symbol(symbol):
         return None
 
 def test_parser():
+    pass
