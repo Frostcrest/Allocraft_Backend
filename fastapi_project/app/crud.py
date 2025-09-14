@@ -108,16 +108,6 @@ def get_prices_for_ticker(db: Session, ticker_id: int, skip: int = 0, limit: int
         .all()
     )
 
-def get_latest_price_for_ticker(db: Session, ticker_id: int):
-    """
-    Retrieve the latest price for a given ticker.
-    """
-    return (
-        db.query(models.Price)
-        .filter(models.Price.ticker_id == ticker_id)
-        .order_by(models.Price.timestamp.desc())
-        .first()
-    )
 
 def update_ticker_price(db: Session, symbol: str):
     """

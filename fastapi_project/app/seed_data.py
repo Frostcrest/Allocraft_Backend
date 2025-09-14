@@ -9,33 +9,7 @@ This script is idempotent: it only inserts data if the respective tables are emp
 
 from sqlalchemy.orm import Session
 from pathlib import Path
-import os
 
-from .database import Base, engine, SessionLocal
-from . import models
-from .importers.wheel_tracker import import_wheel_tracker_csv
-
-
-def seed_stocks(db: Session) -> int:
-    if db.query(models.Stock).count() > 0:
-        return 0
-    stocks = [
-        models.Stock(
-            ticker="AAPL",
-            shares=20,
-            cost_basis=150.0,
-            market_price=None,
-            status="Open",
-            entry_date="2024-06-01",
-            current_price=None,
-            price_last_updated=None,
-        ),
-        models.Stock(
-            ticker="MSFT",
-            shares=10,
-            cost_basis=320.5,
-            market_price=None,
-            status="Open",
             entry_date="2024-05-15",
             current_price=None,
             price_last_updated=None,
