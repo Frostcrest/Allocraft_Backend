@@ -1,3 +1,14 @@
+
+# Alias endpoint for frontend compatibility
+@router.get("/wheel-cycles")
+def list_wheel_cycles_alias(db: Session = Depends(get_db)):
+    """Alias for /wheels/cycles to support legacy/frontend expectations."""
+    try:
+        cycles = WheelService.list_wheel_cycles(db)
+        return {"cycles": cycles}
+    except Exception as e:
+        logger.error(f"Failed to list wheel cycles (alias): {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to list wheel cycles (alias)")
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
