@@ -17,9 +17,10 @@ def test_list_wheel_cycles(db):
 def test_create_and_delete_wheel_cycle(db):
     from fastapi_project.app import schemas
     payload = schemas.WheelCycleCreate(
+        cycle_key="TEST-1",
         ticker="TEST",
         strategy_type="full_wheel",
-        status="active",
+        status="Open",
         initial_cash=10000.0
     )
     cycle = WheelService.create_wheel_cycle(db, payload)

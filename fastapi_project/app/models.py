@@ -20,6 +20,9 @@ class Stock(Base):
     cost_basis = Column(Float)
     market_price = Column(Float, nullable=True)
     status = Column(String, default="Open")
+    entry_date = Column(Date, nullable=True)
+    current_price = Column(Float, nullable=True)
+    price_last_updated = Column(DateTime, nullable=True)
 
 class Ticker(Base):
     __tablename__ = "tickers"
@@ -120,6 +123,7 @@ class Lot(Base):
     __tablename__ = "lots"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String)
+    cycle_id = Column(Integer, ForeignKey("wheel_cycles.id"), index=True)
 
 class LotLink(Base):
     __tablename__ = "lot_links"
