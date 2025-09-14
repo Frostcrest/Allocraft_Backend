@@ -352,7 +352,16 @@ async def get_accounts_with_positions(
                 detail=f"Failed to fetch accounts with positions: {response.text}"
             )
         
-        return response.json()
+        schwab_accounts = response.json()
+        # Transform Schwab response to Allocraft expected shape
+        all_positions = []
+        for acct in schwab_accounts:
+            acct_positions = acct.get('securitiesAccount', {}).get('positions', [])
+            all_positions.extend(acct_positions)
+        return {
+            "value": all_positions,
+            "Count": len(all_positions)
+        }
 
 @router.post("/refresh-token")
 async def refresh_access_token(
