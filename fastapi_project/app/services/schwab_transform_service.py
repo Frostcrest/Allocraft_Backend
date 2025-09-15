@@ -113,7 +113,64 @@ def transform_orders(json_data: Any) -> List[Dict[str, Any]]:
 
 
 
+
 def transform_transactions(json_data: Any) -> List[Dict[str, Any]]:
+	"""Transform Schwab transactions JSON to Allocraft transaction dicts, tagging wheel-related events."""
+	transactions = []
+	# Schwab format: { 'transactions': [ ... ] } or list root
+	if isinstance(json_data, dict) and "transactions" in json_data:
+		tx_list = json_data["transactions"]
+	elif isinstance(json_data, list):
+		tx_list = json_data
+	else:
+		tx_list = []
+	for tx in tx_list:
+		# Extract core fields
+		symbol = tx.get("symbol") or tx.get("underlyingSymbol")
+		action = tx.get("transactionType") or tx.get("action")
+		subcode = tx.get("subCode") or tx.get("subcode")
+		quantity = tx.get("quantity", 0)
+		description = tx.get("description", "")
+		amount = tx.get("amount", 0.0)
+		date = tx.get("transactionDate") or tx.get("date")
+		# Wheel event tagging logic
+		wheel_event = None
+		# Normalize action/description for robust matching
+		desc = description.lower()
+		act = (action or "").lower()
+		sub = (subcode or "").lower()
+		if ("put" in desc and "sell to open" in desc) or (act == "sell" and "put" in desc):
+			wheel_event = "put_sold_to_open"
+		elif ("put" in desc and "buy to close" in desc) or (act == "buy" and "put" in desc):
+			wheel_event = "put_bought_to_close"
+		elif ("call" in desc and "sell to open" in desc) or (act == "sell" and "call" in desc):
+			wheel_event = "call_sold_to_open"
+		elif ("call" in desc and "buy to close" in desc) or (act == "buy" and "call" in desc):
+			wheel_event = "call_bought_to_close"
+		elif "assigned" in desc or "assignment" in desc or "exercise" in desc:
+			if "put" in desc:
+				wheel_event = "put_assigned"
+			elif "call" in desc:
+				wheel_event = "call_assigned"
+		elif ("bought" in desc or act == "buy") and quantity == 100:
+			wheel_event = "stock_bought_100"
+		elif ("sold" in desc or act == "sell") and quantity == 100:
+			wheel_event = "stock_sold_100"
+		elif "expired" in desc:
+			wheel_event = "option_expired"
+		# Add more rules as needed
+		transactions.append({
+			"symbol": symbol,
+			"action": action,
+			"subcode": subcode,
+			"quantity": quantity,
+			"description": description,
+			"amount": amount,
+			"date": date,
+			"wheel_event": wheel_event,
+			"raw_data": tx
+		})
+	return transactions
 	"""Transform Schwab transactions JSON to Allocraft Transaction dicts. Handles dict or list root."""
 	txns = []
 	# If root is a dict with 'transactions', use it; if it's a list, treat as list of transactions
@@ -139,8 +196,39 @@ def transform_transactions(json_data: Any) -> List[Dict[str, Any]]:
 def transform_wheels(json_data: Dict[str, Any]) -> List[Dict[str, Any]]:
 	"""
 	Transform Schwab data to Allocraft WheelCycle and WheelEvent dicts.
-	This requires grouping related option and stock trades into cycles/events.
-	Placeholder for future implementation.
+	Groups related option and stock trades into wheel cycles/events using wheel_event tags.
 	"""
-	# TODO: Implement wheel cycle/event extraction logic
-	return []
+	# Step 1: Get all transactions with wheel_event tags
+	transactions = transform_transactions(json_data)
+	cycles = []
+	current_cycle = None
+	cycle_id = 1
+
+	for tx in transactions:
+		we = tx.get("wheel_event")
+		if we == "put_sold_to_open":
+			# Start a new wheel cycle
+			if current_cycle:
+				cycles.append(current_cycle)
+			current_cycle = {
+				"cycle_id": cycle_id,
+				"symbol": tx["symbol"],
+				"events": [
+					{"type": we, "tx": tx}
+				],
+				"status": "Open"
+			}
+			cycle_id += 1
+		elif current_cycle and we:
+			# Add event to current cycle if symbol matches
+			if tx["symbol"] == current_cycle["symbol"]:
+				current_cycle["events"].append({"type": we, "tx": tx})
+				# End cycle on assignment, call away, or stock sale
+				if we in ("put_assigned", "call_assigned", "stock_sold_100", "option_expired"):
+					current_cycle["status"] = "Closed"
+					cycles.append(current_cycle)
+					current_cycle = None
+	# If a cycle is still open at the end, add it
+	if current_cycle:
+		cycles.append(current_cycle)
+	return cycles

@@ -8,6 +8,63 @@ import io
 
 class WheelService:
 
+    @staticmethod
+    def import_wheel_cycles_from_schwab_transactions(db: Session, schwab_json: dict) -> List[models.WheelCycle]:
+        """
+        Import wheel cycles and events from Schwab transaction JSON.
+        Uses transform_wheels to group transactions, then persists WheelCycle and WheelEvent records.
+        Returns list of created WheelCycle objects.
+        """
+        from .schwab_transform_service import transform_wheels
+        from datetime import datetime
+        cycles_data = transform_wheels(schwab_json)
+        created_cycles = []
+        for cycle in cycles_data:
+            # Create WheelCycle
+            cycle_key = f"{cycle['symbol']}-{cycle['cycle_id']}"
+            db_cycle = models.WheelCycle(
+                cycle_key=cycle_key,
+                ticker=cycle['symbol'],
+                started_at=datetime.now().date(),
+                status=cycle.get('status', 'Open'),
+                notes=None
+            )
+            db.add(db_cycle)
+            db.flush()  # Get db_cycle.id
+            # Create WheelEvent records
+            for event in cycle['events']:
+                tx = event['tx']
+                event_type = WheelService._map_wheel_event_type(event['type'])
+                db_event = models.WheelEvent(
+                    cycle_id=db_cycle.id,
+                    event_type=event_type,
+                    event_date=tx.get('date'),
+                    contracts=tx.get('quantity'),
+                    strike=tx.get('raw_data', {}).get('strikePrice'),
+                    premium=tx.get('amount'),
+                    notes=tx.get('description')
+                )
+                db.add(db_event)
+            created_cycles.append(db_cycle)
+        db.commit()
+        return created_cycles
+
+    @staticmethod
+    def _map_wheel_event_type(wheel_event: str) -> str:
+        """Map internal wheel_event tag to WheelEvent.event_type schema value."""
+        mapping = {
+            'put_sold_to_open': 'SELL_PUT_OPEN',
+            'put_bought_to_close': 'BUY_PUT_CLOSE',
+            'call_sold_to_open': 'SELL_CALL_OPEN',
+            'call_bought_to_close': 'SELL_CALL_CLOSE',
+            'put_assigned': 'ASSIGNMENT',
+            'call_assigned': 'CALLED_AWAY',
+            'stock_bought_100': 'BUY_SHARES',
+            'stock_sold_100': 'SELL_SHARES',
+            'option_expired': 'SELL_PUT_CLOSE',  # or 'SELL_CALL_CLOSE' depending on context
+        }
+        return mapping.get(wheel_event, wheel_event.upper())
+
     # --- Detection, Analytics, and Utility Functions ---
     @staticmethod
     def calculate_days_to_expiration(expiration_date: str) -> int:
