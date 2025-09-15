@@ -16,7 +16,7 @@ class PortfolioService:
 
     @staticmethod
     def get_stock_positions(db: Session):
-        """Return all positions with asset_type == 'EQUITY' or 'STOCK' from the unified Position table."""
+        """Return all positions with asset_type == 'EQUITY' or 'STOCK' from the unified Position table as a plain array."""
         positions = db.query(Position).filter(Position.asset_type.in_(['EQUITY', 'STOCK']), Position.is_active == True).all()
         result = []
         for pos in positions:
@@ -35,11 +35,11 @@ class PortfolioService:
                 "data_source": pos.data_source,
                 "is_active": pos.is_active
             })
-        return {"positions": result, "count": len(result)}
+        return result
 
     @staticmethod
     def get_option_positions(db: Session):
-        """Return all positions with asset_type == 'OPTION' from the unified Position table."""
+        """Return all positions with asset_type == 'OPTION' from the unified Position table as a plain array."""
         positions = db.query(Position).filter(Position.asset_type == 'OPTION', Position.is_active == True).all()
         result = []
         for pos in positions:
@@ -58,7 +58,7 @@ class PortfolioService:
                 "data_source": pos.data_source,
                 "is_active": pos.is_active
             })
-        return {"positions": result, "count": len(result)}
+        return result
 
     @staticmethod
     def sync_from_schwab_tables(db, deactivate_missing=True):
