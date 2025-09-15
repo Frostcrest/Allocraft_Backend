@@ -4,6 +4,7 @@ Extracted from routers/portfolio.py for maintainability and testability.
 """
 from sqlalchemy.orm import Session
 from datetime import datetime, UTC
+from datetime import datetime
 from app.models_unified import Account, Position
 from app.models import SchwabAccount, SchwabPosition
 from app.utils.option_parser import parse_option_symbol
@@ -12,6 +13,52 @@ import logging
 logger = logging.getLogger(__name__)
 
 class PortfolioService:
+
+    @staticmethod
+    def get_stock_positions(db: Session):
+        """Return all positions with asset_type == 'EQUITY' or 'STOCK' from the unified Position table."""
+        positions = db.query(Position).filter(Position.asset_type.in_(['EQUITY', 'STOCK']), Position.is_active == True).all()
+        result = []
+        for pos in positions:
+            result.append({
+                "id": pos.id,
+                "account_id": pos.account_id,
+                "symbol": pos.symbol,
+                "asset_type": pos.asset_type,
+                "underlying_symbol": pos.underlying_symbol,
+                "option_type": pos.option_type,
+                "strike_price": pos.strike_price,
+                "expiration_date": pos.expiration_date.isoformat() if pos.expiration_date else None,
+                "long_quantity": pos.long_quantity,
+                "short_quantity": pos.short_quantity,
+                "market_value": pos.market_value,
+                "data_source": pos.data_source,
+                "is_active": pos.is_active
+            })
+        return {"positions": result, "count": len(result)}
+
+    @staticmethod
+    def get_option_positions(db: Session):
+        """Return all positions with asset_type == 'OPTION' from the unified Position table."""
+        positions = db.query(Position).filter(Position.asset_type == 'OPTION', Position.is_active == True).all()
+        result = []
+        for pos in positions:
+            result.append({
+                "id": pos.id,
+                "account_id": pos.account_id,
+                "symbol": pos.symbol,
+                "asset_type": pos.asset_type,
+                "underlying_symbol": pos.underlying_symbol,
+                "option_type": pos.option_type,
+                "strike_price": pos.strike_price,
+                "expiration_date": pos.expiration_date.isoformat() if pos.expiration_date else None,
+                "long_quantity": pos.long_quantity,
+                "short_quantity": pos.short_quantity,
+                "market_value": pos.market_value,
+                "data_source": pos.data_source,
+                "is_active": pos.is_active
+            })
+        return {"positions": result, "count": len(result)}
 
     @staticmethod
     def sync_from_schwab_tables(db, deactivate_missing=True):
@@ -219,6 +266,7 @@ class PortfolioService:
             imported_accounts += 1
             position_count = len(account_data.get("positions", []))
             logger.info(f"Importing {position_count} positions for account {account_data['account_number']}")
+            # datetime is now imported at the top of the file
             for position_data in account_data.get("positions", []):
                 underlying_symbol = position_data.get("underlying_symbol")
                 if not underlying_symbol and position_data.get("asset_type") == "OPTION":
@@ -229,15 +277,34 @@ class PortfolioService:
                 option_type = position_data.get("option_type")
                 strike_price = position_data.get("strike_price")
                 expiration_date_str = position_data.get("expiration_date")
+                expiration_date = None
+                if expiration_date_str:
+                    try:
+                        # Accepts both 'YYYY-MM-DD' and 'YYYY-MM-DDTHH:MM:SS' formats
+                        if len(expiration_date_str) == 10:
+                            expiration_date = datetime.strptime(expiration_date_str, "%Y-%m-%d")
+                        else:
+                            expiration_date = datetime.fromisoformat(expiration_date_str)
+                    except Exception as e:
+                        logger.warning(f"Could not parse expiration_date '{expiration_date_str}': {e}")
+                        expiration_date = None
                 if position_data.get("asset_type") == "OPTION":
-                    if not option_type or not strike_price or not expiration_date_str:
+                    if not option_type or not strike_price or not expiration_date:
                         parsed_option = parse_option_symbol(position_data["symbol"])
                         if parsed_option:
                             option_type = option_type or parsed_option.get("option_type")
                             strike_price = strike_price or parsed_option.get("strike_price")
-                            if not expiration_date_str and parsed_option.get("expiry_date"):
-                                expiration_date_str = parsed_option.get("expiry_date")
-                            logger.info(f"Parsed option symbol {position_data['symbol']}: type={option_type}, strike=${strike_price}, exp={expiration_date_str}")
+                            if not expiration_date and parsed_option.get("expiry_date"):
+                                try:
+                                    expiry_date_str = parsed_option.get("expiry_date")
+                                    if len(expiry_date_str) == 10:
+                                        expiration_date = datetime.strptime(expiry_date_str, "%Y-%m-%d")
+                                    else:
+                                        expiration_date = datetime.fromisoformat(expiry_date_str)
+                                except Exception as e:
+                                    logger.warning(f"Could not parse parsed_option expiry_date '{expiry_date_str}': {e}")
+                                    expiration_date = None
+                            logger.info(f"Parsed option symbol {position_data['symbol']}: type={option_type}, strike=${strike_price}, exp={expiration_date}")
                 new_position = Position(
                     account_id=new_account.id,
                     symbol=position_data["symbol"],
@@ -245,7 +312,7 @@ class PortfolioService:
                     underlying_symbol=underlying_symbol,
                     option_type=option_type,
                     strike_price=strike_price,
-                    expiration_date=expiration_date_str,
+                    expiration_date=expiration_date,
                     long_quantity=position_data.get("long_quantity", 0.0),
                     short_quantity=position_data.get("short_quantity", 0.0),
                     market_value=position_data.get("market_value", 0.0),
