@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -19,7 +18,34 @@ from datetime import datetime, UTC
 
 logger = logging.getLogger(__name__)
 
+
+
 router = APIRouter(prefix="/wheels", tags=["Wheels"])
+# --- Manual Ticker Tracking ---
+class TrackTickerRequest(BaseModel):
+    ticker: str
+
+@router.post("/track-ticker")
+def track_ticker(request: TrackTickerRequest, db: Session = Depends(get_db)):
+    """Manually add a ticker to track in wheel phase view. Creates a new WheelCycle if not present."""
+    ticker = request.ticker.strip().upper()
+    from datetime import date
+    # Check if a cycle for this ticker already exists
+    existing = db.query(models.WheelCycle).filter(models.WheelCycle.ticker == ticker).first()
+    if existing:
+        return {"detail": f"Ticker {ticker} is already being tracked."}
+    # Create new WheelCycle
+    cycle = models.WheelCycle(
+        cycle_key=f"{ticker}-MANUAL-{date.today().isoformat()}",
+        ticker=ticker,
+        started_at=date.today(),
+        status="Manual",
+        notes="Manually added for historical tracking."
+    )
+    db.add(cycle)
+    db.commit()
+    db.refresh(cycle)
+    return {"detail": f"Ticker {ticker} added for tracking.", "cycle_id": cycle.id}
 
 # Alias endpoint for frontend compatibility (must be after router definition)
 @router.get("/wheel-cycles")
@@ -27,7 +53,7 @@ def list_wheel_cycles_alias(db: Session = Depends(get_db)):
     """Alias for /wheels/cycles to support legacy/frontend expectations."""
     try:
         cycles = WheelService.list_wheel_cycles(db)
-        return {"cycles": cycles}
+        return cycles
     except Exception as e:
         logger.error(f"Failed to list wheel cycles (alias): {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to list wheel cycles (alias)")
@@ -37,7 +63,7 @@ def list_wheel_cycles(db: Session = Depends(get_db)):
     """List all wheel cycles (for API smoke test compatibility)."""
     try:
         cycles = WheelService.list_wheel_cycles(db)
-        return {"cycles": cycles}
+        return cycles
     except Exception as e:
         logger.error(f"Failed to list wheel cycles: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to list wheel cycles")
@@ -1356,3 +1382,11 @@ def auto_detect_wheel_status(
             status_code=500,
             detail=f"Failed to update cycle status: {str(e)}"
         )
+
+@router.delete("/cycles/{cycle_id}")
+def delete_wheel_cycle(cycle_id: int, db: Session = Depends(get_db)):
+    """Delete a wheel cycle by ID."""
+    ok = WheelService.delete_wheel_cycle(db, cycle_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Wheel cycle not found")
+    return {"detail": "Wheel cycle deleted"}
