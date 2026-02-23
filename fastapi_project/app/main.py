@@ -24,8 +24,9 @@ app.include_router(portfolio_fast.router)  # Fast unified portfolio with progres
 from fastapi import FastAPI
 import logging
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.requests import Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from .limiter import limiter
@@ -175,11 +176,9 @@ app.include_router(stocks_fast.router)  # Ultra-fast stocks endpoint
 # Converts AppError (and its subclasses) into structured JSON responses.
 # This makes utils/error_handling.py active across all routes.
 from .utils.error_handling import AppError
-from fastapi.responses import JSONResponse
-from fastapi import Request as _Request
 
 @app.exception_handler(AppError)
-async def app_error_handler(_request: _Request, exc: AppError):
+async def app_error_handler(request: Request, exc: AppError):
     """Translate AppError into a consistent JSON error envelope."""
     return JSONResponse(
         status_code=exc.status_code,

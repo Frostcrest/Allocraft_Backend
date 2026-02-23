@@ -861,8 +861,8 @@ def batch_refresh_lot_metrics(db: Session, lot_ids: List[int]) -> None:
         cost_basis_effective = None
         try:
             cost_basis_effective = (stock_cost_total - net_premiums + fees_total) / 100.0
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("cost_basis_effective calculation failed for lot_id=%s: %s", lot_id, exc)
         lot.cost_basis_effective = cost_basis_effective
 
         # Auto-fix coverage status
