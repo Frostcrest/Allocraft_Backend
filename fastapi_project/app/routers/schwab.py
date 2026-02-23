@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import RedirectResponse
 import httpx
 import os
+import secrets
 from typing import Dict, Any, Optional
 import base64
 from urllib.parse import urlencode
@@ -18,10 +19,17 @@ from ..database import get_db
 from .. import models
 from ..models import User, SchwabAccount, SchwabPosition
 from ..services.mock_data_service import MockDataService
+from ..utils.crypto import encrypt_token, decrypt_token
 # from ..services.schwab_sync_service import SchwabSyncService  # TODO: Enable when SchwabClient is implemented
 
 router = APIRouter(prefix="/schwab", tags=["schwab"])
 logger = logging.getLogger(__name__)
+
+# Server-side state store for OAuth CSRF protection.
+# Maps random state token → {user_id, created_at}.
+# In a multi-process deployment this should be replaced with a shared store (Redis / DB table).
+_oauth_state_store: Dict[str, Dict] = {}
+_OAUTH_STATE_TTL_SECONDS = 600  # 10 minutes
 
 # Schwab API Configuration
 SCHWAB_CONFIG = {
@@ -42,8 +50,13 @@ async def get_auth_url(
     if not SCHWAB_CONFIG["client_id"]:
         raise HTTPException(status_code=500, detail="Schwab Client ID not configured")
     
-    # Use user ID as state parameter to maintain session
-    state = str(current_user.id)
+    # Generate a cryptographically random state token to prevent CSRF.
+    # We store user_id server-side and return only the opaque token to the client.
+    state = secrets.token_urlsafe(32)
+    _oauth_state_store[state] = {
+        "user_id": current_user.id,
+        "created_at": datetime.now(UTC),
+    }
     
     params = {
         "response_type": "code",
@@ -87,8 +100,24 @@ async def oauth_callback(
         )
     
     try:
-        # Get user by ID from state parameter
-        user_id = int(state)
+        # Validate CSRF state token.
+        frontend_url = os.getenv("FRONTEND_URL", "https://allocraft.app")
+        state_entry = _oauth_state_store.pop(state, None)
+        if state_entry is None:
+            logger.warning("OAuth callback received unknown or already-used state token")
+            return RedirectResponse(
+                url=f"{frontend_url}/stocks?error=invalid_state",
+                status_code=302
+            )
+        age_seconds = (datetime.now(UTC) - state_entry["created_at"]).total_seconds()
+        if age_seconds > _OAUTH_STATE_TTL_SECONDS:
+            logger.warning("OAuth callback state token expired (%ds old)", int(age_seconds))
+            return RedirectResponse(
+                url=f"{frontend_url}/stocks?error=state_expired",
+                status_code=302
+            )
+
+        user_id = state_entry["user_id"]
         user = db.query(models.User).filter(models.User.id == user_id).first()
         
         if not user:
@@ -101,7 +130,6 @@ async def oauth_callback(
         await store_user_schwab_tokens(db, user, tokens)
         
         # Redirect back to frontend with success
-        frontend_url = os.getenv("FRONTEND_URL", "https://allocraft.app")
         return RedirectResponse(
             url=f"{frontend_url}/stocks?schwab_connected=true",
             status_code=302
@@ -147,9 +175,9 @@ async def exchange_code_for_tokens(code: str) -> Dict[str, Any]:
         return response.json()
 
 async def store_user_schwab_tokens(db: Session, user: models.User, tokens: Dict[str, Any]):
-    """Store Schwab tokens with the user in the database"""
-    user.schwab_access_token = tokens.get("access_token")
-    user.schwab_refresh_token = tokens.get("refresh_token")
+    """Store Schwab tokens with the user in the database (encrypted at rest)."""
+    user.schwab_access_token = encrypt_token(tokens.get("access_token"))
+    user.schwab_refresh_token = encrypt_token(tokens.get("refresh_token"))
     
     # Calculate expiration time (Schwab tokens typically expire in 30 minutes)
     expires_in = tokens.get("expires_in", 1800)  # Default 30 minutes
@@ -166,12 +194,12 @@ async def get_user_schwab_token(db: Session, user: models.User) -> Optional[str]
     if (user.schwab_access_token and 
         user.schwab_token_expires_at and 
     user.schwab_token_expires_at > datetime.now(UTC)):
-        return user.schwab_access_token
+        return decrypt_token(user.schwab_access_token)
     
     # Try to refresh the token if we have a refresh token
     if user.schwab_refresh_token:
         try:
-            tokens = await refresh_schwab_token(user.schwab_refresh_token)
+            tokens = await refresh_schwab_token(decrypt_token(user.schwab_refresh_token))
             await store_user_schwab_tokens(db, user, tokens)
             return tokens.get("access_token")
         except Exception as e:

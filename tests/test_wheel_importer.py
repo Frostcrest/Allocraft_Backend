@@ -11,7 +11,7 @@ def db():
         db.close()
 
 def test_import_wheel_cycle_from_csv(db):
-    # Simulate import logic (replace with real import if available)
-    # This is a placeholder for actual CSV import logic
-    # Example: WheelService.import_from_csv(db, 'tests/data/wheel_cycles.csv')
-    assert True  # Replace with real assertion when implemented
+    # NOTE: WheelService.import_from_csv does not exist yet.
+    # This test is a placeholder and will be replaced once the method is implemented.
+    # Tracked in tests.json as WHL-002 / DET-* suites.
+    pytest.skip("WheelService.import_from_csv not implemented — tracked in tests.json")

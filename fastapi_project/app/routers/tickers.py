@@ -10,8 +10,13 @@ from sqlalchemy.orm import Session
 from .. import schemas, crud
 from ..services.tickers_service import TickersService
 from ..database import get_db
+from ..dependencies import require_authenticated_user
 
-router = APIRouter(prefix="/tickers", tags=["Tickers"])
+router = APIRouter(
+    prefix="/tickers",
+    tags=["Tickers"],
+    dependencies=[Depends(require_authenticated_user)],
+)
 
 @router.post("/", response_model=schemas.TickerRead)
 def create_ticker(ticker: schemas.TickerCreate, db: Session = Depends(get_db)):

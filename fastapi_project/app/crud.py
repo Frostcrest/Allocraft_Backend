@@ -18,20 +18,7 @@ def get_user_by_id(db: Session, user_id: int):
     Retrieve a user by their primary key ID.
     """
     return db.query(models.User).filter(models.User.id == user_id).first()
-from .utils.security import hash_password, verify_password
-from sqlalchemy.orm import Session
-from fastapi import HTTPException
-from datetime import datetime, UTC
 
-from . import schemas
-from . import models
-from .models import Ticker, Stock, Price  # Import specific models directly
-from .services.price_service import (
-    fetch_latest_price,
-    fetch_yf_price,
-    fetch_option_contract_price,
-    fetch_ticker_info,
-)
 
 def get_ticker_by_symbol(db: Session, symbol: str):
     """
@@ -232,7 +219,9 @@ def get_options(db: Session, refresh_prices: bool = False):
             if px is not None:
                 # This is not exact option premium; treat as placeholder only if none set
                 if o.market_price_per_contract is None:
-                    o.market_price_per_contract = float(px) * 0.01  # naive proxy 1% of underlying
+                    # Cannot derive a meaningful option price from the underlying stock price.
+                    # Leave as None; fetch the real option contract price separately via price_service.
+                    pass
                     changed = True
         except Exception:
             continue

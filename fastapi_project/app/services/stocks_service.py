@@ -115,10 +115,8 @@ class StocksService:
                 "manual_positions": len([p for p in positions if p["source"] == "manual"]),
                 "schwab_positions": len([p for p in positions if "schwab" in p["source"]]),
                 "accounts": len(accounts),
-                "equity_positions": len([p for p in positions if p["assetType"] in ["EQUITY", "COLLECTIVE_INVESTMENT"]]),
-                "option_positions": len([p for p in positions if p["assetType"] == "OPTION"]),
-                "total_market_value": sum(p["marketValue"] for p in positions),
                 "equity_positions": len([p for p in positions if not p["isOption"]]),
-                "option_positions": len([p for p in positions if p["isOption"]])
+                "option_positions": len([p for p in positions if p["isOption"]]),
+                "total_market_value": sum(p["marketValue"] for p in positions),
             }
         }

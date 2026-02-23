@@ -6,6 +6,7 @@ from ..schemas import WheelDetectionRequest, WheelDetectionResult
 from ..services.wheel_service import WheelService
 from ..models_unified import Position
 from ..database import get_db
+from ..dependencies import require_authenticated_user
 from ..crud_optimized import BatchLoaderService, MetricsService, refresh_prices_batch
 from fastapi.responses import StreamingResponse
 
@@ -20,7 +21,11 @@ logger = logging.getLogger(__name__)
 
 
 
-router = APIRouter(prefix="/wheels", tags=["Wheels"])
+router = APIRouter(
+    prefix="/wheels",
+    tags=["Wheels"],
+    dependencies=[Depends(require_authenticated_user)],
+)
 # --- Manual Ticker Tracking ---
 class TrackTickerRequest(BaseModel):
     ticker: str

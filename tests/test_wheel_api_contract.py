@@ -13,8 +13,6 @@ def test_list_wheel_cycles_contract():
     assert "cycles" in data or "data" in data
 
 
-import pytest
-
 def test_create_wheel_cycle_contract():
     pytest.skip("POST /wheels/cycles endpoint does not exist in API; creation not supported.")
 

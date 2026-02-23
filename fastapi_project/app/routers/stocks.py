@@ -27,7 +27,6 @@ def read_stocks(db: Session = Depends(get_db), refresh_prices: bool = False, ski
         raise HTTPException(status_code=500, detail=f"Error fetching stocks: {str(e)}")
 
 @router.get("/all-positions")
-@router.get("/all-positions")
 def get_all_positions(db: Session = Depends(get_db), current_user: models.User = Depends(require_authenticated_user)):
     """Get all positions from unified Position table (replaces old manual + Schwab split)."""
     try:

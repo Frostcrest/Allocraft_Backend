@@ -11,12 +11,8 @@ def db():
         db.close()
 
 def test_scan_seed_folder_handles_missing(db):
-    # Should raise FileNotFoundError if folder missing
+    """scan_seed_folder must raise FileNotFoundError when the seed folder doesn't exist."""
     import os
-    os.environ['SEED_DROP_DIR'] = 'nonexistent_folder'
-    try:
+    os.environ['SEED_DROP_DIR'] = 'nonexistent_folder_that_does_not_exist'
+    with pytest.raises(FileNotFoundError, match="Seed folder not found"):
         ImporterService.scan_seed_folder(db)
-    except FileNotFoundError:
-        assert True
-    else:
-        assert False, "Expected FileNotFoundError"

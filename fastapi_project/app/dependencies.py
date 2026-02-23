@@ -13,7 +13,8 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
-DISABLE_AUTH = os.getenv("DISABLE_AUTH", "1") in ("1", "true", "True")
+# Default to 0 (auth ON). Set DISABLE_AUTH=1 in .env for local dev only — never in production.
+DISABLE_AUTH = os.getenv("DISABLE_AUTH", "0") in ("1", "true", "True")
 
 def require_authenticated_user(current_user: models.User = Depends(get_current_user)):
     if DISABLE_AUTH:

@@ -60,7 +60,6 @@ async def get_positions(
 
 
 @router.post("/sync/from-schwab-tables")
-@router.post("/sync/from-schwab-tables")
 def sync_from_schwab_tables(
     deactivate_missing: bool = True,
     db: Session = Depends(get_db),

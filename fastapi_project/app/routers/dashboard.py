@@ -11,11 +11,16 @@ from datetime import datetime, UTC
 from typing import Dict, Any
 
 from ..database import get_db
+from ..dependencies import require_authenticated_user
 from .. import models
 from ..crud import get_stocks, get_options
 from ..services.price_service import fetch_option_contract_price
 
-router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
+router = APIRouter(
+    prefix="/dashboard",
+    tags=["Dashboard"],
+    dependencies=[Depends(require_authenticated_user)],
+)
 
 
 @router.get("/snapshot")

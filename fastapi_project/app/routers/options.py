@@ -14,11 +14,16 @@ from sqlalchemy.orm import Session
 from .. import schemas, crud, models
 from ..services.options_service import OptionsService
 from ..database import get_db
+from ..dependencies import require_authenticated_user
 from fastapi.responses import StreamingResponse
 import io
 import csv
 
-router = APIRouter(prefix="/options", tags=["Options"])
+router = APIRouter(
+    prefix="/options",
+    tags=["Options"],
+    dependencies=[Depends(require_authenticated_user)],
+)
 
 @router.get("/")
 def read_options(db: Session = Depends(get_db), refresh_prices: bool = False):

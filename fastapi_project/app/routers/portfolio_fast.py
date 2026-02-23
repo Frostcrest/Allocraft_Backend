@@ -6,11 +6,16 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 from app.database import get_db
+from app.dependencies import require_authenticated_user
 from app.models_unified import Account, Position
 from datetime import datetime, UTC
 import logging
 
-router = APIRouter(prefix="/portfolio", tags=["portfolio"])
+router = APIRouter(
+    prefix="/portfolio",
+    tags=["portfolio"],
+    dependencies=[Depends(require_authenticated_user)],
+)
 logger = logging.getLogger(__name__)
 
 @router.post("/import-fast")
@@ -19,27 +24,27 @@ async def import_positions_fast(import_data: dict, db: Session = Depends(get_db)
     Fast import with progress tracking - optimized for large datasets
     """
     try:
-        print("🚀 Starting fast import...")
+        logger.info("🚀 Starting fast import...")
         
         # Validate input
         if "accounts" not in import_data:
             raise HTTPException(status_code=400, detail="Missing 'accounts' in import data")
         
         accounts_data = import_data["accounts"]
-        print(f"📊 Found {len(accounts_data)} accounts to import")
+        logger.info(f"📊 Found {len(accounts_data)} accounts to import")
         
         # Clear existing data first (fast operation)
-        print("🧹 Clearing existing unified data...")
+        logger.info("🧹 Clearing existing unified data...")
         db.query(Position).delete()
         db.query(Account).delete()
         db.commit()
-        print("✅ Existing data cleared")
+        logger.info("✅ Existing data cleared")
         
         total_positions = 0
         
         # Process each account
         for i, account_data in enumerate(accounts_data):
-            print(f"📁 Processing account {i+1}/{len(accounts_data)}: {account_data.get('account_number', 'Unknown')}")
+            logger.info(f"📁 Processing account {i+1}/{len(accounts_data)}: {account_data.get('account_number', 'Unknown')}")
             
             # Create account (simple, fast)
             account = Account(
@@ -54,18 +59,18 @@ async def import_positions_fast(import_data: dict, db: Session = Depends(get_db)
             
             db.add(account)
             db.flush()  # Get ID immediately
-            print(f"✅ Account created with ID: {account.id}")
+            logger.debug(f"✅ Account created with ID: {account.id}")
             
             # Prepare positions in batches (much faster)
             positions_data = account_data.get("positions", [])
-            print(f"📈 Processing {len(positions_data)} positions...")
+            logger.info(f"📈 Processing {len(positions_data)} positions...")
             
             positions_to_add = []
             
             for j, pos_data in enumerate(positions_data):
                 # Show progress every 5 positions
                 if j % 5 == 0:
-                    print(f"  📊 Processing position {j+1}/{len(positions_data)}: {pos_data.get('symbol', 'Unknown')}")
+                    logger.debug(f"  📊 Processing position {j+1}/{len(positions_data)}: {pos_data.get('symbol', 'Unknown')}")
                 
                 # Create position object (minimal processing)
                 position = Position(
@@ -89,14 +94,14 @@ async def import_positions_fast(import_data: dict, db: Session = Depends(get_db)
                 positions_to_add.append(position)
             
             # Bulk insert all positions for this account (MUCH faster)
-            print(f"💾 Bulk inserting {len(positions_to_add)} positions...")
+            logger.info(f"💾 Bulk inserting {len(positions_to_add)} positions...")
             db.add_all(positions_to_add)
             total_positions += len(positions_to_add)
             
-            print(f"✅ Account {account.account_number} completed: {len(positions_to_add)} positions")
+            logger.info(f"✅ Account {account.account_number} completed: {len(positions_to_add)} positions")
         
         # Final commit
-        print("💾 Committing all changes...")
+        logger.info("💾 Committing all changes...")
         db.commit()
         
         result = {
@@ -106,11 +111,11 @@ async def import_positions_fast(import_data: dict, db: Session = Depends(get_db)
             "import_timestamp": datetime.now(UTC).isoformat()
         }
         
-        print(f"🎉 IMPORT COMPLETE: {len(accounts_data)} accounts, {total_positions} positions")
+        logger.info(f"🎉 IMPORT COMPLETE: {len(accounts_data)} accounts, {total_positions} positions")
         return result
         
     except Exception as e:
-        print(f"❌ Import failed: {str(e)}")
+        logger.error(f"❌ Import failed: {str(e)}")
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Import failed: {str(e)}")
 

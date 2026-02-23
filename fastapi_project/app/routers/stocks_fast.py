@@ -4,9 +4,14 @@ Ultra-Fast Stocks Endpoint - No Schema Validation, Pure Speed
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.database import get_db
+from app.dependencies import require_authenticated_user
 from app.models_unified import Position
 
-router = APIRouter(prefix="/stocks-fast", tags=["stocks-fast"])
+router = APIRouter(
+    prefix="/stocks-fast",
+    tags=["stocks-fast"],
+    dependencies=[Depends(require_authenticated_user)],
+)
 
 @router.get("/")
 async def get_stocks_lightning_fast(db: Session = Depends(get_db)):
