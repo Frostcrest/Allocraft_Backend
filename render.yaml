@@ -1,23 +1,27 @@
+databases:
+  - name: allocraft-db
+    plan: free
+    # Free-tier Postgres on Render — 1 GB storage, 1 CPU, shared instance.
+    # Connection string is injected automatically via fromDatabase below.
+
 services:
   - type: web
     name: allocraft-backend
     env: python
     plan: free
-    # Use the app subfolder as the working directory for runtime
+    # rootDir is the working directory for both build and runtime commands.
     rootDir: fastapi_project
-  # Install dependencies from repo root (requirements.txt is at repo root)
-  buildCommand: pip install -r ../requirements.txt
-    # Start the FastAPI app
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    # Install Python dependencies from the repo root requirements.txt.
+    buildCommand: pip install -r ../requirements.txt
+    # Apply pending Alembic migrations first, then start the server.
+    startCommand: python -m alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: FRONTEND_ORIGINS
         value: https://allocraft-lite.onrender.com,https://allocraft-lite-dev.onrender.com,http://localhost:5173
       - key: SECRET_KEY
         generateValue: true
       - key: DATABASE_URL
-        # Persist DB on the attached disk
-        value: sqlite:////opt/render/data/allocraft.db
-    disks:
-      - name: data
-        mountPath: /opt/render/data
-        sizeGB: 1
+        # Postgres connection string injected from the managed database above.
+        fromDatabase:
+          name: allocraft-db
+          property: connectionString

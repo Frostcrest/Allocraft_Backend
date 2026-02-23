@@ -766,6 +766,139 @@ def refresh_lot_metrics(db: Session, lot_id: int) -> schemas.LotMetricsRead:
     )
 
 
+def batch_refresh_lot_metrics(db: Session, lot_ids: List[int]) -> None:
+    """Refresh LotMetrics for multiple lots in a minimum number of DB round-trips.
+
+    Compared to calling ``refresh_lot_metrics`` per lot this function:
+    - Issues 3 SELECT queries total (lots, lot_links, wheel_events) regardless of N.
+    - Fetches yfinance prices once per *unique ticker* rather than once per lot.
+    - Upserts all LotMetrics rows in a single commit.
+
+    Args:
+        db: Active SQLAlchemy session.
+        lot_ids: Lot primary keys whose metrics should be recomputed.
+    """
+    if not lot_ids:
+        return
+
+    unique_ids = list(set(lot_ids))
+
+    # 1 query — load all lots
+    lots_map: Dict[int, models.Lot] = {
+        l.id: l
+        for l in db.query(models.Lot).filter(models.Lot.id.in_(unique_ids)).all()
+    }
+
+    # 1 query — load all lot_links for these lots
+    links_map: Dict[int, List[models.LotLink]] = {lid: [] for lid in unique_ids}
+    for link in db.query(models.LotLink).filter(models.LotLink.lot_id.in_(unique_ids)).all():
+        links_map.setdefault(link.lot_id, []).append(link)
+
+    # Collect all referenced WheelEvent IDs — 1 query
+    event_ids: set[int] = set()
+    for links in links_map.values():
+        for lk in links:
+            if lk.linked_object_type == "WHEEL_EVENT":
+                event_ids.add(lk.linked_object_id)
+
+    events_map: Dict[int, models.WheelEvent] = {}
+    if event_ids:
+        for ev in db.query(models.WheelEvent).filter(models.WheelEvent.id.in_(event_ids)).all():
+            events_map[ev.id] = ev
+
+    # Fetch current prices once per unique ticker
+    tickers: set[str] = {l.ticker for l in lots_map.values() if l.ticker}
+    price_map: Dict[str, Optional[float]] = {}
+    for ticker in tickers:
+        price = None
+        try:
+            price = fetch_yf_price(ticker)
+        except Exception:
+            pass
+        if price is None:
+            try:
+                price = fetch_latest_price(ticker)
+            except Exception:
+                pass
+        price_map[ticker] = price
+
+    # 1 query — load existing LotMetrics rows for bulk upsert
+    metrics_map: Dict[int, models.LotMetrics] = {
+        m.lot_id: m
+        for m in db.query(models.LotMetrics).filter(models.LotMetrics.lot_id.in_(unique_ids)).all()
+    }
+
+    for lot_id in unique_ids:
+        lot = lots_map.get(lot_id)
+        if not lot:
+            continue
+        lot_links = links_map.get(lot_id, [])
+        linked_event_ids = [lk.linked_object_id for lk in lot_links if lk.linked_object_type == "WHEEL_EVENT"]
+        events = [events_map[eid] for eid in linked_event_ids if eid in events_map]
+
+        net_premiums = 0.0
+        stock_cost_total = 0.0
+        fees_total = 0.0
+        realized_pl = 0.0
+        shares_remaining = 0
+        for e in events:
+            fees = e.fees or 0.0
+            fees_total += fees
+            et = e.event_type
+            contracts = e.contracts or 0
+            qty = e.quantity_shares or 0
+            if et in ("SELL_PUT_OPEN", "SELL_CALL_OPEN"):
+                net_premiums += (e.premium or 0) * contracts * 100
+            elif et in ("SELL_PUT_CLOSE", "SELL_CALL_CLOSE"):
+                net_premiums -= (e.premium or 0) * contracts * 100
+            elif et in ("BUY_SHARES", "ASSIGNMENT"):
+                stock_cost_total += (e.price or e.strike or 0) * qty
+                shares_remaining += qty
+            elif et in ("SELL_SHARES", "CALLED_AWAY"):
+                stock_cost_total -= (e.price or e.strike or 0) * qty
+                shares_remaining -= qty
+
+        cost_basis_effective = None
+        try:
+            cost_basis_effective = (stock_cost_total - net_premiums + fees_total) / 100.0
+        except Exception:
+            pass
+        lot.cost_basis_effective = cost_basis_effective
+
+        # Auto-fix coverage status
+        try:
+            if shares_remaining < 100 and lot.status == "OPEN_COVERED":
+                lot.status = "OPEN_UNCOVERED"
+            if shares_remaining <= 0:
+                if any(e.event_type == "CALLED_AWAY" for e in events):
+                    lot.status = "CLOSED_CALLED_AWAY"
+                elif lot.status not in ("CLOSED_CALLED_AWAY", "CLOSED_SOLD"):
+                    lot.status = "OPEN_UNCOVERED"
+        except Exception as exc:
+            logger.warning("Lot status auto-fix failed for lot_id=%s: %s", lot_id, exc)
+
+        # Unrealized P/L
+        unrealized_pl = 0.0
+        current_price = price_map.get(lot.ticker) if lot.ticker else None
+        if lot.status in ("CLOSED_CALLED_AWAY", "CLOSED_SOLD", "CLOSED_MERGED"):
+            unrealized_pl = 0.0
+        elif current_price is not None and cost_basis_effective is not None:
+            unrealized_pl = (current_price - cost_basis_effective) * 100.0
+
+        m = metrics_map.get(lot_id)
+        if not m:
+            m = models.LotMetrics(lot_id=lot_id)
+            db.add(m)
+            metrics_map[lot_id] = m
+        m.net_premiums = round(net_premiums, 2)
+        m.stock_cost_total = round(stock_cost_total, 2)
+        m.fees_total = round(fees_total, 2)
+        m.realized_pl = round(realized_pl, 2)
+        m.unrealized_pl = round(unrealized_pl, 2)
+
+    db.commit()
+
+
 class LotAssembler:
     """Deterministically groups WheelEvents into 100-share lots.
 
@@ -945,13 +1078,11 @@ class LotAssembler:
         # Single commit for all changes
         self.db.commit()
 
-        # Refresh metrics post-commit in a stable state
-        for lot_id in to_refresh_metrics:
-            try:
-                refresh_lot_metrics(self.db, lot_id)
-            except Exception:
-                # Don’t fail the entire rebuild on a single metrics issue
-                pass
+        # Refresh metrics post-commit — single batch (3 queries + 1 price fetch per ticker + 1 commit)
+        try:
+            batch_refresh_lot_metrics(self.db, to_refresh_metrics)
+        except Exception as _batch_err:
+            logger.warning("batch_refresh_lot_metrics failed, skipping metrics: %s", _batch_err)
         return created
 
 

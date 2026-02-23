@@ -131,8 +131,24 @@ def health():
         "time_utc": datetime.now(UTC).isoformat(),
     }
 
-# --- Database Initialization ---
-Base.metadata.create_all(bind=engine)
+# --- Database Schema Management ---
+# In production, schema is managed by Alembic: `alembic upgrade head`
+# In development, create_all is used as a fallback (cannot alter existing columns).
+_using_alembic = False
+try:
+    from alembic.config import Config
+    from alembic import command as alembic_command
+    _alembic_cfg_path = str(Path(__file__).resolve().parent.parent / "alembic.ini")
+    if Path(_alembic_cfg_path).exists():
+        _alembic_cfg = Config(_alembic_cfg_path)
+        alembic_command.upgrade(_alembic_cfg, "head")
+        _using_alembic = True
+        logger.info("Alembic migrations applied (upgrade head)")
+except Exception as _e:
+    logger.warning("Alembic upgrade failed (%s) — falling back to create_all. DO NOT use this in production.", _e)
+
+if not _using_alembic:
+    Base.metadata.create_all(bind=engine)
 
 
 # --- Ensure a default admin user exists ---
@@ -155,6 +171,24 @@ app.include_router(portfolio.router)  # Portfolio import/export
 app.include_router(portfolio_fast.router)  # Fast unified portfolio with progress tracking
 app.include_router(stocks_fast.router)  # Ultra-fast stocks endpoint
 
+# --- Application Error Handler ---
+# Converts AppError (and its subclasses) into structured JSON responses.
+# This makes utils/error_handling.py active across all routes.
+from .utils.error_handling import AppError
+from fastapi.responses import JSONResponse
+from fastapi import Request as _Request
+
+@app.exception_handler(AppError)
+async def app_error_handler(_request: _Request, exc: AppError):
+    """Translate AppError into a consistent JSON error envelope."""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "detail": exc.user_message,
+            "code": exc.code.value if hasattr(exc.code, "value") else str(exc.code),
+            "timestamp": exc.timestamp,
+        },
+    )
 
 # --- Expiry helper endpoints for local UI compatibility ---
 @app.get("/option_expiries/{ticker}", tags=["Options"])

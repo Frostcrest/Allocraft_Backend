@@ -122,18 +122,42 @@ class WheelEvent(Base):
 class Lot(Base):
     __tablename__ = "lots"
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String)
-    cycle_id = Column(Integer, ForeignKey("wheel_cycles.id"), index=True)
+    cycle_id = Column(Integer, ForeignKey("wheel_cycles.id"), index=True, nullable=False)
+    ticker = Column(String, nullable=False, index=True)
+    acquisition_method = Column(String, nullable=False)  # e.g. ASSIGNMENT, BUY_SHARES
+    acquisition_date = Column(String, nullable=True)     # ISO date string
+    status = Column(String, default="OPEN_UNCOVERED", nullable=False)
+    cost_basis_effective = Column(Float, nullable=True)  # Per-share adjusted cost basis
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC))
+
+    # Relationships
+    links = relationship("LotLink", back_populates="lot", cascade="all, delete-orphan")
+    metrics = relationship("LotMetrics", back_populates="lot", uselist=False, cascade="all, delete-orphan")
+
 
 class LotLink(Base):
     __tablename__ = "lot_links"
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String)
+    lot_id = Column(Integer, ForeignKey("lots.id"), nullable=False, index=True)
+    linked_object_type = Column(String, nullable=False)  # e.g. WHEEL_EVENT
+    linked_object_id = Column(Integer, nullable=False)
+    role = Column(String, nullable=False)  # e.g. PUT_OPEN, CALL_OPEN, ASSIGNMENT, CALL_ASSIGNMENT
+
+    lot = relationship("Lot", back_populates="links")
+
 
 class LotMetrics(Base):
     __tablename__ = "lot_metrics"
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String)
+    lot_id = Column(Integer, ForeignKey("lots.id"), nullable=False, unique=True, index=True)
+    net_premiums = Column(Float, default=0.0, nullable=False)
+    stock_cost_total = Column(Float, default=0.0, nullable=False)
+    fees_total = Column(Float, default=0.0, nullable=False)
+    realized_pl = Column(Float, default=0.0, nullable=False)
+    unrealized_pl = Column(Float, default=0.0, nullable=False)
+
+    lot = relationship("Lot", back_populates="metrics")
 
 # Models expected by imports
 class Wheel(Base):
