@@ -1,11 +1,14 @@
 """
 Ultra-Fast Stocks Endpoint - No Schema Validation, Pure Speed
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import require_authenticated_user
 from app.models_unified import Position
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/stocks-fast",
@@ -14,7 +17,7 @@ router = APIRouter(
 )
 
 @router.get("/")
-async def get_stocks_lightning_fast(db: Session = Depends(get_db)):
+def get_stocks_lightning_fast(db: Session = Depends(get_db)):
     """
     Ultra-fast stocks endpoint - returns raw data in milliseconds
     """
@@ -48,19 +51,19 @@ async def get_stocks_lightning_fast(db: Session = Depends(get_db)):
         return result
         
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/count")
-async def get_stock_count(db: Session = Depends(get_db)):
+def get_stock_count(db: Session = Depends(get_db)):
     """Just count stocks - should be instant"""
     try:
         count = db.query(Position).filter(Position.asset_type == "EQUITY").count()
         return {"stock_count": count}
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/debug")
-async def debug_positions(db: Session = Depends(get_db)):
+def debug_positions(db: Session = Depends(get_db)):
     """Debug what we have in the database"""
     try:
         # Count by asset type
@@ -78,4 +81,4 @@ async def debug_positions(db: Session = Depends(get_db)):
             "sample_symbols": [{"symbol": p.symbol, "type": p.asset_type} for p in sample_positions]
         }
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))

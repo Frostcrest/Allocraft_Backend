@@ -2,6 +2,9 @@ from .utils.security import hash_password, verify_password
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from datetime import datetime, UTC
+import logging
+
+logger = logging.getLogger(__name__)
 
 from . import schemas
 from . import models
@@ -543,22 +546,23 @@ def calculate_wheel_metrics(db: Session, cycle_id: int) -> schemas.WheelMetricsR
         p = fetch_yf_price(cycle.ticker)
         if p is not None:
             current_price = float(p)
-    except Exception:
+    except Exception as e:
+        logger.debug("Primary yf price fetch failed for %s: %s", cycle.ticker, e)
         current_price = None
     if current_price is None:
         try:
             p2 = fetch_latest_price(cycle.ticker)
             if p2 is not None:
                 current_price = float(p2)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Fallback price fetch failed for %s: %s", cycle.ticker, e)
     if current_price is None:
         try:
             t = get_ticker_by_symbol(db, cycle.ticker)
             if t and t.last_price is not None:
                 current_price = float(t.last_price)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Fallback DB price lookup failed for %s: %s", cycle.ticker, e)
 
     unrealized_pl = 0.0
     if current_price is not None and shares_owned:
@@ -713,8 +717,8 @@ def refresh_lot_metrics(db: Session, lot_id: int) -> schemas.LotMetricsRead:
                 # Keep uncovered per product requirement rather than auto-closing as SOLD
                 if lot.status not in ("CLOSED_CALLED_AWAY", "CLOSED_SOLD"):
                     lot.status = "OPEN_UNCOVERED"
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Lot status auto-fix failed for lot_id=%s: %s", lot_id, e)
     db.commit()
 
     # Unrealized P/L estimate (stock-only)
@@ -732,8 +736,8 @@ def refresh_lot_metrics(db: Session, lot_id: int) -> schemas.LotMetricsRead:
             p2 = fetch_latest_price(lot.ticker)
             if p2 is not None:
                 current_price = float(p2)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Fallback price lookup failed for lot ticker %s: %s", lot.ticker, e)
     # If lot is closed, unrealized is zero
     if lot.status in ("CLOSED_CALLED_AWAY", "CLOSED_SOLD", "CLOSED_MERGED"):
         unrealized_pl = 0.0

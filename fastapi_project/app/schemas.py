@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from pydantic import ConfigDict
-from typing import Optional, Literal, Dict, Any
+from typing import Optional, Literal, Dict, Any, List
 from datetime import date, datetime
 
 # --- STOCK SCHEMAS ---
@@ -315,76 +315,82 @@ class Token(BaseModel):
 
 
 # --- WHEEL DETECTION SCHEMAS ---
-class WheelDetectionRequest(BaseModel):
-    positions: list[dict[str, Any]] = Field(..., description="List of position dicts to analyze")
-    tickers: Optional[list[str]] = Field(None, description="Optional list of tickers to filter detection")
-    # Add more fields as needed for detection context
 
-class WheelDetectionResult(BaseModel):
-    ticker: str
-    detected_strategy: str
-    confidence: str
-    confidence_score: float
-    details: Optional[dict[str, Any]] = None
-    # Add more fields as needed for detection output
+class WheelDetectionOptions(BaseModel):
+    """Enhanced detection options for wheel strategy detection"""
+    cash_balance: Optional[float] = None
+    account_type: Optional[str] = None
+    risk_tolerance: Optional[str] = "moderate"  # conservative, moderate, aggressive
+    include_historical: Optional[bool] = False
+    market_data: Optional[Dict[str, Any]] = None
 
-
-# --- WHEEL DETECTION SCHEMAS ---
-from typing import List as TypingList
+class MarketContextData(BaseModel):
+    """Market context for enhanced confidence scoring"""
+    volatility: Optional[float] = None
+    market_trend: Optional[str] = None  # bullish, bearish, neutral
+    sector: Optional[str] = None
+    market_cap: Optional[str] = None  # small, mid, large
 
 class PositionForDetection(BaseModel):
+    """Position data formatted for detection algorithm"""
     id: str
     symbol: str
     shares: float
-    is_option: bool
+    is_option: bool = False
     underlying_symbol: Optional[str] = None
-    option_type: Optional[str] = None
+    option_type: Optional[str] = None  # Call, Put
     strike_price: Optional[float] = None
     expiration_date: Optional[str] = None
     contracts: Optional[float] = None
-    market_value: Optional[float] = None
-    source: Optional[str] = None
+    market_value: float
+    source: str
 
 class RiskAssessment(BaseModel):
-    level: str
-    factors: TypingList[str]
-    assignment_risk: float
-
-class PotentialAction(BaseModel):
-    action: str
-    description: str
-    priority: str
+    """Risk assessment for detected wheel strategies"""
+    level: str  # low, medium, high
+    factors: List[str]
+    max_loss: Optional[float] = None
+    assignment_risk: Optional[float] = None  # 0-100 probability
 
 class EnhancedPosition(BaseModel):
-    type: str
+    """Enhanced position data with detection metadata"""
+    type: str  # stock, call, put
     symbol: str
-    quantity: float
-    position: str
+    quantity: float  # Absolute quantity for display
+    position: str  # long, short
     strike_price: Optional[float] = None
     expiration_date: Optional[str] = None
     days_to_expiration: Optional[int] = None
-    market_value: Optional[float] = None
-    raw_quantity: Optional[float] = None
-    source: Optional[str] = None
+    market_value: float
+    raw_quantity: Optional[float] = None  # Preserve signed quantity for logic
+    source: str
+
+class PotentialAction(BaseModel):
+    """Action recommendation with priority"""
+    action: str
+    description: str
+    priority: str  # high, medium, low
 
 class WheelDetectionRequest(BaseModel):
+    """Request body for wheel detection"""
+    options: Optional[WheelDetectionOptions] = None
     account_id: Optional[int] = None
-    specific_tickers: Optional[TypingList[str]] = None
-    options: Optional[Dict[str, Any]] = None
+    specific_tickers: Optional[List[str]] = None
 
 class WheelDetectionResult(BaseModel):
+    """Enhanced wheel detection result"""
     ticker: str
-    strategy: str
-    confidence: str
-    confidence_score: int
+    strategy: str  # cash_secured_put, covered_call, full_wheel, naked_stock
+    confidence: str  # high, medium, low
+    confidence_score: float  # 0-100 numerical score
     description: str
+    cash_required: Optional[float] = None  # Required cash for CSP strategies
+    cash_validated: Optional[bool] = None  # Whether cash requirements are met
     risk_assessment: RiskAssessment
-    positions: TypingList[EnhancedPosition]
-    recommendations: TypingList[str]
-    potential_actions: TypingList[PotentialAction]
-    market_context: Optional[Dict[str, Any]] = None
-    cash_required: Optional[float] = None
-    cash_validated: Optional[bool] = None
+    positions: List[EnhancedPosition]
+    recommendations: Optional[List[str]] = None
+    potential_actions: Optional[List[PotentialAction]] = None
+    market_context: Optional[MarketContextData] = None
 
 class TokenData(BaseModel):
     username: Optional[str] = None

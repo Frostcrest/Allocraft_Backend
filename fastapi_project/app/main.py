@@ -26,6 +26,9 @@ import logging
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from .limiter import limiter
 from .database import Base, engine, SessionLocal
 # Import models before calling create_all to ensure all tables are registered
 from . import models  # noqa: F401 - imports all models from models.py
@@ -46,6 +49,12 @@ app = FastAPI(
     description="FastAPI backend for Allocraft Lite (stocks, options, wheels, auth).",
     version="1.0.1",
 )
+
+# Attach rate limiter
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+logger = logging.getLogger(__name__)
 
 # Configure root logging once (INFO default)
 logging.basicConfig(
@@ -77,8 +86,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 
 # --- Static Files ---
@@ -161,7 +170,8 @@ def get_option_expiries(ticker: str):
             days = (expiry_date - today).days
             expiries.append({"date": date_str, "days": days})
         return expiries
-    except Exception:
+    except Exception as e:
+        logger.warning("Failed to fetch option expiries for %s: %s", ticker, e)
         return []
 
 @app.get("/wheel_expiries/{ticker}", tags=["Wheels"])
@@ -177,7 +187,8 @@ def get_wheel_expiries(ticker: str):
             days = (expiry_date - today).days
             expiries.append({"date": date_str, "days": days})
         return expiries
-    except Exception:
+    except Exception as e:
+        logger.warning("Failed to fetch wheel expiries for %s: %s", ticker, e)
         return []
 
 # --- Optional: Seed-drop CSV importer on startup ---

@@ -2,7 +2,7 @@
 Fast Portfolio Import with Progress Tracking
 Optimized for speed and transparency
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List
 from app.database import get_db
@@ -19,7 +19,7 @@ router = APIRouter(
 logger = logging.getLogger(__name__)
 
 @router.post("/import-fast")
-async def import_positions_fast(import_data: dict, db: Session = Depends(get_db)):
+def import_positions_fast(import_data: dict, db: Session = Depends(get_db)):
     """
     Fast import with progress tracking - optimized for large datasets
     """
@@ -121,14 +121,19 @@ async def import_positions_fast(import_data: dict, db: Session = Depends(get_db)
 
 
 @router.get("/positions")
-async def get_all_positions(db: Session = Depends(get_db)):
-    """Get all positions from unified table"""
+def get_all_positions(
+    db: Session = Depends(get_db),
+    limit: int = Query(50, ge=1, le=500, description="Max items to return"),
+    offset: int = Query(0, ge=0, description="Number of items to skip"),
+):
+    """Get positions from unified table with pagination"""
     try:
-        positions = db.query(Position).all()
+        total = db.query(Position).count()
+        positions = db.query(Position).offset(offset).limit(limit).all()
         
-        result = []
+        items = []
         for pos in positions:
-            result.append({
+            items.append({
                 "id": pos.id,
                 "account_id": pos.account_id,
                 "symbol": pos.symbol,
@@ -150,8 +155,10 @@ async def get_all_positions(db: Session = Depends(get_db)):
             })
         
         return {
-            "total_positions": len(result),
-            "positions": result
+            "items": items,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
         }
         
     except Exception as e:
@@ -159,15 +166,21 @@ async def get_all_positions(db: Session = Depends(get_db)):
 
 
 @router.get("/stocks")
-async def get_stock_positions(db: Session = Depends(get_db)):
-    """Get all stock positions from unified table"""
+def get_stock_positions(
+    db: Session = Depends(get_db),
+    limit: int = Query(50, ge=1, le=500, description="Max items to return"),
+    offset: int = Query(0, ge=0, description="Number of items to skip"),
+):
+    """Get stock positions from unified table with optional pagination"""
     try:
         from app.utils.option_parser import parse_option_symbol
         
-        # Get all stock positions (EQUITY and COLLECTIVE_INVESTMENT)
-        stock_positions = db.query(Position).filter(
+        # Get stock positions (EQUITY and COLLECTIVE_INVESTMENT)
+        base_q = db.query(Position).filter(
             Position.asset_type.in_(["EQUITY", "COLLECTIVE_INVESTMENT"])
-        ).all()
+        )
+        total = base_q.count()
+        stock_positions = base_q.offset(offset).limit(limit).all()
         
         result = []
         for pos in stock_positions:
@@ -193,7 +206,7 @@ async def get_stock_positions(db: Session = Depends(get_db)):
                 "profit_loss_percent": profit_loss_percent
             })
         
-        return result
+        return {"items": result, "total": total, "limit": limit, "offset": offset}
         
     except Exception as e:
         logger.error(f"Error fetching stock positions: {e}")
@@ -201,16 +214,20 @@ async def get_stock_positions(db: Session = Depends(get_db)):
 
 
 @router.get("/options")
-async def get_option_positions(db: Session = Depends(get_db)):
-    """Get all option positions from unified table with enhanced P&L calculations"""
+def get_option_positions(
+    db: Session = Depends(get_db),
+    limit: int = Query(50, ge=1, le=500, description="Max items to return"),
+    offset: int = Query(0, ge=0, description="Number of items to skip"),
+):
+    """Get option positions from unified table with enhanced P&L calculations"""
     try:
         from app.utils.option_parser import parse_option_symbol
         from app.services.pnl_service import OptionPnLCalculator
         
-        # Get all option positions
-        option_positions = db.query(Position).filter(
-            Position.asset_type == "OPTION"
-        ).all()
+        # Get option positions
+        base_q = db.query(Position).filter(Position.asset_type == "OPTION")
+        total = base_q.count()
+        option_positions = base_q.offset(offset).limit(limit).all()
         
         result = []
         for pos in option_positions:
@@ -283,7 +300,7 @@ async def get_option_positions(db: Session = Depends(get_db)):
             
             result.append(option_data)
         
-        return result
+        return {"items": result, "total": total, "limit": limit, "offset": offset}
         
     except Exception as e:
         logger.error(f"Error fetching option positions: {e}")
@@ -291,7 +308,7 @@ async def get_option_positions(db: Session = Depends(get_db)):
 
 
 @router.get("/options/analytics")
-async def get_option_analytics(db: Session = Depends(get_db)):
+def get_option_analytics(db: Session = Depends(get_db)):
     """Get portfolio-level option analytics and P&L summary"""
     try:
         from app.services.pnl_service import OptionPnLCalculator
@@ -344,7 +361,7 @@ async def get_option_analytics(db: Session = Depends(get_db)):
 
 
 @router.get("/accounts")
-async def get_all_accounts(db: Session = Depends(get_db)):
+def get_all_accounts(db: Session = Depends(get_db)):
     """Get all accounts from unified table"""
     try:
         accounts = db.query(Account).all()
@@ -375,7 +392,7 @@ async def get_all_accounts(db: Session = Depends(get_db)):
 
 
 @router.post("/refresh-all-prices")
-async def refresh_all_portfolio_prices(db: Session = Depends(get_db)):
+def refresh_all_portfolio_prices(db: Session = Depends(get_db)):
     """
     Refresh current prices for all active portfolio positions (stocks and options)
     with market value recalculation and detailed progress reporting
@@ -405,38 +422,8 @@ async def refresh_all_portfolio_prices(db: Session = Depends(get_db)):
         )
 
 
-@router.post("/refresh-all-prices")
-async def refresh_all_portfolio_prices(db: Session = Depends(get_db)):
-    """
-    Refresh current prices for all portfolio positions (stocks and options)
-    """
-    try:
-        from app.services.market_value_service import MarketValueUpdateService
-        
-        # Initialize the market value update service
-        update_service = MarketValueUpdateService(db)
-        
-        # Perform full portfolio price refresh
-        result = update_service.refresh_all_portfolio_prices()
-        
-        if result["success"]:
-            return result
-        else:
-            raise HTTPException(
-                status_code=500,
-                detail=result["message"]
-            )
-            
-    except Exception as e:
-        logger.error(f"Error in refresh_all_portfolio_prices: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to refresh portfolio prices: {str(e)}"
-        )
-
-
 @router.post("/refresh-selected-prices")
-async def refresh_selected_position_prices(
+def refresh_selected_position_prices(
     position_ids: List[int],
     db: Session = Depends(get_db)
 ):

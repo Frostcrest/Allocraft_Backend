@@ -1,15 +1,22 @@
 from datetime import datetime, timedelta, UTC
 import os
+import threading
+import logging
 import requests
 import yfinance as yf
 from typing import Dict, Tuple, Optional
 
+logger = logging.getLogger(__name__)
+
 TD_API_KEY = os.getenv("TWELVE_DATA_API_KEY", "")
 
-# --- Simple in-memory caches (process-local) ---
+# --- Thread-safe in-memory caches (process-local) ---
 _cache_prices_td: Dict[str, Tuple[float, datetime]] = {}
 _cache_prices_yf: Dict[str, Tuple[float, datetime]] = {}
 _cache_ticker_info: Dict[str, Tuple[dict, datetime]] = {}
+
+# Single reentrant lock guards all three caches
+_cache_lock = threading.RLock()
 
 # TTLs
 PRICE_TTL = timedelta(seconds=20)
@@ -21,10 +28,10 @@ def fetch_latest_price(ticker: str) -> Optional[float]:
     Returns a float or None. Caches for PRICE_TTL.
     """
     now = datetime.now(UTC)
-    # Cache hit
-    hit = _cache_prices_td.get(ticker)
-    if hit and now - hit[1] < PRICE_TTL:
-        return hit[0]
+    with _cache_lock:
+        hit = _cache_prices_td.get(ticker)
+        if hit and now - hit[1] < PRICE_TTL:
+            return hit[0]
     if not TD_API_KEY:
         return None
     try:
@@ -36,7 +43,8 @@ def fetch_latest_price(ticker: str) -> Optional[float]:
         if price_raw is None:
             return None
         price = float(price_raw)
-        _cache_prices_td[ticker] = (price, now)
+        with _cache_lock:
+            _cache_prices_td[ticker] = (price, now)
         return price
     except Exception:
         return None
@@ -51,9 +59,10 @@ def fetch_yf_price(ticker: str) -> Optional[float]:
     Returns the price as a float, or None if not found.
     """
     now = datetime.now(UTC)
-    hit = _cache_prices_yf.get(ticker)
-    if hit and now - hit[1] < PRICE_TTL:
-        return hit[0]
+    with _cache_lock:
+        hit = _cache_prices_yf.get(ticker)
+        if hit and now - hit[1] < PRICE_TTL:
+            return hit[0]
     try:
         t = yf.Ticker(ticker)
         # 1) fast_info
@@ -96,7 +105,8 @@ def fetch_yf_price(ticker: str) -> Optional[float]:
         if price is None:
             return None
         val = float(price)
-        _cache_prices_yf[ticker] = (val, now)
+        with _cache_lock:
+            _cache_prices_yf[ticker] = (val, now)
         return val
     except Exception:
         return None
@@ -121,7 +131,7 @@ def fetch_option_contract_price(ticker: str, expiry_date: str, option_type: str,
         if not row.empty:
             return float(row.iloc[0]['lastPrice'])
     except Exception as e:
-        print(f"Error fetching option price: {e}")
+        logger.debug("Error fetching option price for %s: %s", ticker, e)
     return None
 
 def fetch_ticker_info(symbol: str) -> dict:
@@ -131,9 +141,10 @@ def fetch_ticker_info(symbol: str) -> dict:
     Never raises; returns {} on failure or when no API key is configured.
     """
     now = datetime.now(UTC)
-    hit = _cache_ticker_info.get(symbol)
-    if hit and now - hit[1] < TICKER_INFO_TTL:
-        return hit[0]
+    with _cache_lock:
+        hit = _cache_ticker_info.get(symbol)
+        if hit and now - hit[1] < TICKER_INFO_TTL:
+            return hit[0]
     if not TD_API_KEY:
         return {}
     try:
@@ -154,7 +165,8 @@ def fetch_ticker_info(symbol: str) -> dict:
             "market_cap": None,
             "timestamp": data.get("datetime"),
         }
-        _cache_ticker_info[symbol] = (info, now)
+        with _cache_lock:
+            _cache_ticker_info[symbol] = (info, now)
         return info
     except Exception:
         return {}

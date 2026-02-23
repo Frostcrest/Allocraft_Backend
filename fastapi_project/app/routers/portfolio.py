@@ -11,25 +11,28 @@ import json
 import logging
 
 from app.database import get_db
-from app.dependencies import require_role
+from app.dependencies import require_role, require_authenticated_user
 from app.models_unified import Account, Position
 from app.models import SchwabAccount, SchwabPosition
 from app.utils.option_parser import parse_option_symbol
 from app.services.portfolio_service import PortfolioService
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/portfolio", tags=["portfolio"])
+router = APIRouter(
+    prefix="/portfolio",
+    tags=["portfolio"],
+    dependencies=[Depends(require_authenticated_user)],
+)
 
 
 @router.post("/import/positions")
-async def import_positions(
+def import_positions(
     import_data: dict,
     db: Session = Depends(get_db)
 ):
     """
     Import positions from any brokerage export into unified tables.
     Supports Schwab, future Fidelity/TD Ameritrade, and manual CSV imports.
-    No authentication required - development data seeding.
     """
     try:
         result = PortfolioService.import_positions(import_data, db)
@@ -42,23 +45,8 @@ async def import_positions(
         raise HTTPException(status_code=500, detail="Failed to import positions")
 
 
-@router.get("/positions")
-async def get_positions(
-    account_id: int = None,
-    asset_type: str = None,
-    db: Session = Depends(get_db)
-):
-    """Get positions from unified tables with optional filtering"""
-    try:
-        return PortfolioService.get_positions(db, account_id, asset_type)
-    except ValueError as e:
-        logger.error(f"Position query error: {str(e)}")
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Unexpected position query error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to get positions")
-
-
+# NOTE: GET /portfolio/positions is handled by portfolio_fast.py to avoid route conflict.
+# See Issue #24 in 2026-02-22_CODE_REVIEW_PLAN.
 @router.post("/sync/from-schwab-tables")
 def sync_from_schwab_tables(
     deactivate_missing: bool = True,
@@ -74,18 +62,18 @@ def sync_from_schwab_tables(
 
 
 @router.get("/positions/stocks")
-async def get_stock_positions(db: Session = Depends(get_db)):
+def get_stock_positions(db: Session = Depends(get_db)):
     """Get only stock positions (EQUITY) - legacy compatibility"""
     return PortfolioService.get_stock_positions(db)
 
 @router.get("/positions/options")
-async def get_option_positions(db: Session = Depends(get_db)):
+def get_option_positions(db: Session = Depends(get_db)):
     """Get only option positions - legacy compatibility"""
     return PortfolioService.get_option_positions(db)
 
 
 @router.post("/sync/schwab")
-async def sync_schwab_positions(
+def sync_schwab_positions(
     force: bool = False,
     db: Session = Depends(get_db)
 ):
@@ -105,7 +93,7 @@ async def sync_schwab_positions(
 
 
 @router.get("/export/positions")
-async def export_positions(db: Session = Depends(get_db)):
+def export_positions(db: Session = Depends(get_db)):
     """
     Export all positions from unified tables
     

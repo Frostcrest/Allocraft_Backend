@@ -9,7 +9,7 @@ Common errors:
 - 404 if updating/deleting an option that doesn't exist.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from sqlalchemy.orm import Session
 from .. import schemas, crud, models
 from ..services.options_service import OptionsService
@@ -26,10 +26,18 @@ router = APIRouter(
 )
 
 @router.get("/")
-def read_options(db: Session = Depends(get_db), refresh_prices: bool = False):
-    """Get all option contracts from unified Position table with parsed strike/expiry data."""
+def read_options(
+    db: Session = Depends(get_db),
+    refresh_prices: bool = False,
+    limit: int = Query(50, ge=1, le=500, description="Max items to return"),
+    offset: int = Query(0, ge=0, description="Number of items to skip"),
+):
+    """Get option contracts from unified Position table with parsed strike/expiry data."""
     try:
-        return OptionsService.read_options(db)
+        all_options = OptionsService.read_options(db)
+        total = len(all_options)
+        items = all_options[offset : offset + limit]
+        return {"items": items, "total": total, "limit": limit, "offset": offset}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching options: {str(e)}")
 

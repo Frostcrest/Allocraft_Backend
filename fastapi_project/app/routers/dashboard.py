@@ -5,7 +5,7 @@ Provides a consolidated snapshot of portfolio metrics for the UI.
 This avoids multiple client calls and centralizes calculation logic.
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 from datetime import datetime, UTC
 from typing import Dict, Any
@@ -15,6 +15,7 @@ from ..dependencies import require_authenticated_user
 from .. import models
 from ..crud import get_stocks, get_options
 from ..services.price_service import fetch_option_contract_price
+from ..limiter import limiter
 
 router = APIRouter(
     prefix="/dashboard",
@@ -24,7 +25,8 @@ router = APIRouter(
 
 
 @router.get("/snapshot")
-def snapshot(db: Session = Depends(get_db)) -> Dict[str, Any]:
+@limiter.limit("10/minute")
+def snapshot(request: Request, db: Session = Depends(get_db)) -> Dict[str, Any]:
     # Load positions with price refresh to populate current prices best-effort
     stocks = get_stocks(db, refresh_prices=True, limit=10000)
     options = get_options(db, refresh_prices=True)

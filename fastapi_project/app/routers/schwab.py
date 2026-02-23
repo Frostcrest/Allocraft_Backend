@@ -301,7 +301,7 @@ async def get_account_by_hash(
         response = await client.get(url, headers=headers)
         
         logger.info(f"Account details response status: {response.status_code}")
-        logger.info(f"Account details response content: {response.text}")
+        # NOTE: response.text is NOT logged — contains raw account/position financial data
         
         if response.status_code != 200:
             raise HTTPException(
@@ -332,13 +332,13 @@ async def get_positions(
     # Add detailed logging
     logger.info(f"Fetching positions for account {account_id}")
     logger.info(f"Full URL: {url}")
-    logger.info(f"Headers: {headers}")
+    # NOTE: Authorization headers are NOT logged
     
     async with httpx.AsyncClient() as client:
         response = await client.get(url, headers=headers)
         
         logger.info(f"Response status: {response.status_code}")
-        logger.info(f"Response content: {response.text}")
+        # NOTE: response.text is NOT logged — contains positions/financial data
         
         if response.status_code != 200:
             raise HTTPException(
@@ -372,7 +372,7 @@ async def get_accounts_with_positions(
         response = await client.get(url, headers=headers)
         
         logger.info(f"Accounts with positions response status: {response.status_code}")
-        logger.info(f"Accounts with positions response: {response.text}")
+        # NOTE: response.text is NOT logged — contains account balances and positions
         
         if response.status_code != 200:
             raise HTTPException(
